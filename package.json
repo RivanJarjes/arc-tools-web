@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "assembler": "ts-node src/app/simulator/assembler.ts",
-    "ts-node": "ts-node"
+    "assembler": "ts-node --project tsconfig.node.json src/app/simulator/assembler.ts",
+    "ts-node": "ts-node",
+    "test:assembler": "ts-node -r tsconfig-paths/register --project tsconfig.node.json src/app/simulator/test.ts"
   },
   "dependencies": {
     "next": "15.1.7",
@@ -25,6 +26,7 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "ts-node": "^10.9.1",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.0.0"
   }
 }
