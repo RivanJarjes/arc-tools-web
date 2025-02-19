@@ -72,6 +72,7 @@ export const instructionSet = {
             // Set higher 22 bits
             op_code: "00",
             op2_code: "100",
+            cond_code: "0000",
             operands: 2,
             memory_param: 0,
         },

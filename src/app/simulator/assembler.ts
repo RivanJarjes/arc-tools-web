@@ -187,8 +187,8 @@ function encode_instruction(
 
                 const mem22: number = getImmediateValue(tokens[1], symbolTable);
                 const disp22: string = numberToTwosComplementBinary(mem22 - currentPc, 22);
-                const op2: string = "010";
-                const cond: string = instruction.op2_code; 
+                const op2: string = instruction.op2_code;
+                const cond: string = instruction.cond_code; 
 
                 return "000" + cond + op2 + disp22;
             }
