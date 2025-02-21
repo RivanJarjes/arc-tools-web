@@ -216,13 +216,6 @@ export const instructionSet = {
             operands: 1,
             memory_param: 0,
         },
-        jmpl: {
-            // Jump and link
-            op_code: "01",
-            op3_code: "111000",
-            operands: 2,
-            memory_param: 0,
-        },
         /*
             ALU
         */
@@ -268,6 +261,13 @@ export const instructionSet = {
             operands: 3,
             memory_param: 0,
         },
+        jmpl: {
+            // Jump To New Address
+            op_code: "10",
+            op3_code: "111000",
+            operands: 2,
+            memory_param: 0,
+        },
         or: {
             // OR
             op_code: "10",
@@ -295,6 +295,13 @@ export const instructionSet = {
             op3_code: "010110",
             operands: 3,
             memory_param: 0,
+        },
+        rd: {
+            // Read a value
+            op_code: "10",
+            op3_code: "101001",
+            operands: 2,
+            memory_param: 0
         },
         rett: {
             // Return from subroutine
@@ -389,6 +396,7 @@ export const instructionSet = {
             op3_code: "000000",
             operands: 2,
             memory_param: 1,
+            bytes_loaded: 4,
             store_instruction: false,
         },
         ldsb: {
@@ -397,6 +405,7 @@ export const instructionSet = {
             op3_code: "001001",
             operands: 2,
             memory_param: 1,
+            bytes_loaded: 1,
             store_instruction: false,
         },
         ldsh: {
@@ -405,6 +414,7 @@ export const instructionSet = {
             op3_code: "001010",
             operands: 2,
             memory_param: 1,
+            bytes_loaded: 2,
             store_instruction: false,
         },
         ldub: {
@@ -413,6 +423,7 @@ export const instructionSet = {
             op3_code: "000001",
             operands: 2,
             memory_param: 1,
+            bytes_loaded: 1,
             store_instruction: false,
         },
         lduh: {
@@ -421,14 +432,7 @@ export const instructionSet = {
             op3_code: "000010",
             operands: 2,
             memory_param: 1,
-            store_instruction: false,
-        },
-        rd: {
-            // Read a value
-            op_code: "11",
-            op3_code: "101001",
-            operands: 2,
-            memory_param: 0,
+            bytes_loaded: 2,
             store_instruction: false,
         },
         st: {
@@ -437,7 +441,8 @@ export const instructionSet = {
             op3_code: "000100",
             operands: 2,
             memory_param: 2,
-            store_instruction: true,
+            bytes_stored: 4,
+            store_instruction: true
         },
         stb: {
             // Store a byte
@@ -445,7 +450,8 @@ export const instructionSet = {
             op3_code: "000101",
             operands: 2,
             memory_param: 2,
-            store_instruction: true,
+            bytes_stored: 1,
+            store_instruction: true
         },
         sth: {
             // Store a half-word (2 bytes)
@@ -453,7 +459,8 @@ export const instructionSet = {
             op3_code: "000110",
             operands: 2,
             memory_param: 2,
-            store_instruction: true,
+            bytes_stored: 2,
+            store_instruction: true
         },
         /*
             OTHER
@@ -470,49 +477,58 @@ export const instructionSet = {
 
 export const syntheticInstructions = {
     not: {
-		// Not a value
-		instruction: "xor *1, %r0, *2",
-		operands: 2,
-	},
-	neg: {
-		// Negate a value
-		instruction: "sub %r0, *1, *2",
-		operands: 2,
-	},
-	inc: {
-		// Increment a value
-		instruction: "add *1, 1, *1",
-		operands: 1,
-	},
-	dec: {
-		// Decrement a value
-		instruction: "sub *1, 1, *1",
-		operands: 1,
-	},
-	clr: {
-		// Clear a value
-		instruction: "and *1, %r0, *1",
-		operands: 1,
-	},
-	cmp: {
-		instruction: "subcc *1, *2, %r0",
-		operands: 2,
-	},
-	tst: {
-		// Test a value
-		instruction: "orcc %r0, *1, %r0",
-		operands: 1,
-	},
-	mov: {
-		// Move a value
-		instruction: "or %r0, *1, *2",
-		operands: 2,
-	},
-	nop: {
-		// No operation
-		instruction: "sethi 0, %r0",
-		operands: 0,
-	}
+        // Not a value
+        instruction: ["xor", "*1", "%r0", "*2"],
+        operands: 2,
+        operand_types: ["reg", "reg"]
+    },
+    neg: {
+        // Negate a value
+        instruction: ["sub", "%r0", "*1", "*2"],
+        operands: 2,
+        operand_types: ["reg", "reg"]
+    },
+    inc: {
+        // Increment a value
+        instruction: ["add", "*1", "1", "*1"],
+        operands: 1,
+        operand_types: ["reg"]
+    },
+    dec: {
+        // Decrement a value
+        instruction: ["sub", "*1", "1", "*1"],
+        operands: 1,
+        operand_types: ["reg"]
+    },
+    clr: {
+        // Clear a value
+        instruction: ["and", "*1", "%r0", "*1"],
+        operands: 1,
+        operand_types: ["reg"]
+    },
+    cmp: {
+        instruction: ["subcc", "*1", "*2", "%r0"],
+        operands: 2,
+        operand_types: ["reg", "reg_imm"]
+    },
+    tst: {
+        // Test a value
+        instruction: ["orcc", "%r0", "*1", "%r0"],
+        operands: 1,
+        operand_types: ["reg"]
+    },
+    mov: {
+        // Move a value
+        instruction: ["or", "%r0", "*1", "*2"],
+        operands: 2,
+        operand_types: ["reg_imm", "reg"]
+    },
+    nop: {
+        // No operation
+        instruction: ["sethi", "0", "%r0"],
+        operands: 0,
+        operand_types: []
+    }
 } as const;
 
 export const pseudoOps = {
