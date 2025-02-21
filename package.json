@@ -12,6 +12,8 @@
     "test:assembler": "ts-node -r tsconfig-paths/register --project tsconfig.node.json src/app/simulator/test.ts"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.52.2",
     "next": "15.1.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

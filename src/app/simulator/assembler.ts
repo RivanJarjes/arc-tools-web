@@ -2,8 +2,8 @@ import type { MemoryMap } from "./types";
 import {
 	numberToUnsignedBinary,
 	numberToTwosComplementBinary,
-    twosComplementHexToNumber,
     twosComplementBinaryToNumber,
+    unsignedHexToNumber,
     binaryToHex
 } from "../utils/helpers";
 
@@ -23,26 +23,36 @@ interface MemoryAddressValue {
 }
 
 export { instructionSet, syntheticInstructions, pseudoOps };
+let currentLine: number = 0;
+
+function error(message: string) {
+    throw new Error(`Error on line ${currentLine}: ${message}`);
+}
 
 export interface AssemblerOutput {
-	machineCode: string[];
+	machineCode: string;
 	symbolTable: MemoryMap;
 }
 
 export function assemble(code: string): AssemblerOutput {
 	const lines = code.split("\n");
 	const cleanInstructions = lines
-		.map((line) => line.trim())
-		.filter((line) => line && !line.startsWith("!")); // Remove empty lines and comments
+		.map((line) => line.startsWith("!") ? "" : line.trim());
 	// First pass: build symbol table
 	const symbolTable = first_pass(cleanInstructions);
 	// Second pass: generate machine code
 	const machineCode = second_pass(cleanInstructions, symbolTable);
-	if (machineCode.includes("NaN")) {
-		throw new Error("Invalid instruction or operand");
+	if (machineCode.some(line => line.includes("NaN"))) {
+		error("Invalid instruction or operand");
 	}
+
+	// Convert each binary instruction to hexadecimal using binaryToHex
+	const formattedMachineCode = machineCode.map(line => {
+		return line.map(binary => binaryToHex(binary)).join('\t');
+	}).join('\n');
+    
 	return {
-		machineCode,
+		machineCode: formattedMachineCode,
 		symbolTable,
 	};
 }
@@ -53,20 +63,23 @@ function first_pass(instructions: string[]): MemoryMap {
 	let assembling: boolean = false;
 
 	for (const instruction of instructions) {
+		currentLine++;
 		const tokens = tokenize(instruction);
 		if (!tokens.length) continue;
 
 		if (tokens[0].endsWith(":")) {
 			const label = tokens[0].slice(0, -1);
-			if (!/\d/.test(label)) {
+			if (/^[a-zA-Z0-9]+$/.test(label)) {
 				// Store only the address
 				symbolMap.set(label, { address: pc });
 			}
 			tokens.shift(); // Remove label from tokens
+            pc+= 4;
+            continue;
 		}
 
 		// Handle pseudo-ops
-		if (tokens[0].slice(1) in pseudoOps) {
+		if (tokens[0] && tokens[0].slice(1) in pseudoOps) {
 			switch (tokens[0]) {
 				case ".begin":
 					assembling = true;
@@ -93,40 +106,45 @@ function first_pass(instructions: string[]): MemoryMap {
 			pc += 4; // Each instruction is 4 bytes
 		}
 	}
+    currentLine = 0;
 	return symbolMap;
 }
 
-function second_pass(instructions: string[], symbolTable: MemoryMap): string[] {
-	const machineCode: string[] = [];
+function second_pass(instructions: string[], symbolTable: MemoryMap): string[][] {
+	const machineCode: string[][] = [];
 	let pc = 0;
 	let assembling: boolean = false;
 	for (const instruction of instructions) {
+        currentLine++;
 		const tokens = tokenize(instruction);
 		if (!tokens.length) continue;
 
 		// Skip labels
 		if (tokens[0].endsWith(":")) {
 			tokens.shift();
-			if (!tokens.length) continue;
+			if (!tokens.length) {
+                pc += 4;
+                continue;
+            };
 		}
 
 		// Handle pseudo-ops
-		if (tokens[0].slice(1) in pseudoOps) {
+		if (tokens[0] &&tokens[0].slice(1) in pseudoOps) {
 			switch (tokens[0]) {
 				case ".begin":
 					assembling = true;
 					continue;
 				case ".end":
                     if (!assembling)
-                        throw new Error("Unterminated block, expecting .begin");
+                        error("Unterminated block, expecting .begin");
 					assembling = false;
 					continue;
 				case ".org":
                     const org_value = parseInt(tokens[1]);
                     if (isNaN(org_value))
-                        throw new Error("Invalid operand: " + tokens[1]);
+                        error("Invalid operand: " + tokens[1]);
                     else if (org_value % 4 != 0)
-                        throw new Error("Memory address must be word aligned (a multiple of 4): " + tokens[1]);
+                        error("Memory address must be word aligned (a multiple of 4): " + tokens[1]);
                     pc = org_value;
 					continue;
 			}
@@ -138,35 +156,44 @@ function second_pass(instructions: string[], symbolTable: MemoryMap): string[] {
         // Ignore .equ psuedo-ops
         if (tokens[1] == ".equ") continue;
 
+        if (machineCode.length == 0) {
+            machineCode.push([numberToTwosComplementBinary(pc, 32)]);
+        }
+
 		// Handle actual instructions
 		const baseInstruction = tokens[0];
+
+        machineCode.push([]);
+        machineCode[machineCode.length - 1].push(numberToTwosComplementBinary(pc, 32));
 
 		if (baseInstruction in instructionSet) {
 			const encoded = encode_instruction(tokens, symbolTable, pc);
 			if (encoded !== null) {
-				machineCode.push(encoded);
+				machineCode[machineCode.length - 1].push(encoded);
 				pc += 4;
 			} else {
-				throw new Error("Invalid instruction: " + instruction);
+				error("Invalid instruction: " + instruction);
 			}
-		} else if (instruction in syntheticInstructions) {
+		} else if (baseInstruction in syntheticInstructions) {
 			const expanded = expand_synthetic(tokens, symbolTable);
             const encoded = encode_instruction(expanded, symbolTable, pc);
             if (encoded !== null) {
-                machineCode.push(encoded);
+                machineCode[machineCode.length - 1].push(encoded);
                 pc += 4;
             } else 
-                throw new Error("Invalid instruction: " + instruction);
+                error("Invalid instruction: " + instruction);
 		} else if (tokens.length == 1 && isImmediate(tokens[0], symbolTable)) {
-			machineCode.push(numberToTwosComplementBinary(getImmediateValue(tokens[0], symbolTable), 32));
+			machineCode[machineCode.length - 1].push(numberToTwosComplementBinary(getImmediateValue(tokens[0], symbolTable), 32));
 			pc += 4;
 		} else {
-			throw new Error("Invalid instruction: " + instruction);
+			error("Invalid instruction: " + instruction);
 		}
 	}
     if (assembling) {
-        throw new Error("Unterminated block, expecting .end");
+        error("Unterminated block, expecting .end");
     }
+
+    currentLine = 0;
 	return machineCode;
 }
 
@@ -182,13 +209,13 @@ function encode_instruction(
 	const instruction =
 		instructionSet[baseInstruction as keyof typeof instructionSet];
 	if (instruction === undefined)
-		throw new Error("Invalid instruction: " + baseInstruction);
+		error("Invalid instruction: " + baseInstruction);
 
 	switch (instruction.op_code) {
 		case "00": // SETHI and Branching
             if (baseInstruction == "sethi" && tokens.length == 3) {
                 if (!isImmediate(tokens[1], symbolTable) || !isRegister(tokens[2]))
-                    throw new Error("Invalid operands: " + tokens.slice(1).join(" "));
+                    error("Invalid operands: " + tokens.slice(1).join(" "));
 
                 const imm22: string = numberToTwosComplementBinary(getImmediateValue(tokens[1], symbolTable), 22);
                 const op2: string = instruction.op2_code;
@@ -196,57 +223,57 @@ function encode_instruction(
                 return "00" + rd + op2 + imm22;
             }else if (baseInstruction != "sethi" && tokens.length == 2) {
                 if (!isImmediate(tokens[1],symbolTable))
-                    throw new Error("Invalid operand: " + tokens.slice(1).join(" "));
+                    error("Invalid operand: " + tokens.slice(1).join(" "));
 
                 const mem22: number = getImmediateValue(tokens[1], symbolTable);
-                const disp22: string = numberToTwosComplementBinary(mem22 - currentPc, 22);
+                const disp22: string = numberToTwosComplementBinary(Math.floor((mem22 - currentPc) / 4), 22);
                 const op2: string = instruction.op2_code;
                 const cond: string = instruction.cond_code; 
 
                 return "000" + cond + op2 + disp22;
             }
-            throw new Error("Invalid operands: " + tokens.join(" "));
+            error("Invalid operands: " + tokens.join(" "));
 		case "01": // CALL 
-            if (tokens.length != 2) throw new Error("Invalid operands: " + tokens.join(" "));
+            if (tokens.length != 2) error("Invalid operands: " + tokens.join(" "));
 
             if (!isImmediate(tokens[1],symbolTable))
-                throw new Error("Invalid operand: " + tokens.slice(1).join(" "));
+                error("Invalid operand: " + tokens.slice(1).join(" "));
 
             const mem30: number = getImmediateValue(tokens[1], symbolTable);
-            const disp30: string = numberToTwosComplementBinary(mem30 - currentPc, 30);
+            const disp30: string = numberToTwosComplementBinary(Math.floor((mem30 - currentPc) / 4), 30);
 
             return "01" + disp30;
 		case "10": // ALU
             // Special Cases
             if (baseInstruction == "rd") {
-                if (tokens.length != 3) throw new Error("Invalid operands: " + tokens.join(" "));
+                if (tokens.length != 3) error("Invalid operands: " + tokens.join(" "));
 
                 if (tokens[1] != "%psr" || !isRegister(tokens[2]))
-                    throw new Error("Invalid operands: " + tokens.join(" "));
+                    error("Invalid operands: " + tokens.join(" "));
 
                 const rd: string = numberToUnsignedBinary(parseInt(tokens[2].slice(2)), 5);
 
                 return "10" + rd + instruction.op3_code + "0".repeat(19);
             }else if (baseInstruction == "jmpl") {
-                if (tokens.length != 3) throw new Error("Invalid operands: " + tokens.join(" "));
+                if (tokens.length != 3) error("Invalid operands: " + tokens.join(" "));
 
                 const jmplResult = validJMPLOperand(tokens[1], symbolTable);
                 
                 if (!jmplResult.valid || !isRegister(tokens[2])) 
-                    throw new Error("Invalid operands: " + tokens.join(" "));
+                    error("Invalid operands: " + tokens.join(" "));
 
                 const rd = numberToUnsignedBinary(parseInt(tokens[2].slice(2)), 5);
                 const rs1 = numberToUnsignedBinary(parseInt(jmplResult.register!.slice(2)), 5);
                 const simm13 = numberToTwosComplementBinary(jmplResult.immediate!, 13);
                 return "10" + rd + instruction.op3_code + rs1 + "1" + simm13;
             }else if (baseInstruction == "ta") {
-                if (tokens.length != 2) throw new Error("Invalid operands: " + tokens.join(" "));
+                if (tokens.length != 2) error("Invalid operands: " + tokens.join(" "));
 
                 const opRegister = isRegister(tokens[1]);
                 const opImmediate = isImmediate(tokens[1], symbolTable);
 
                 if (opRegister == opImmediate) // If it's neither or... somehow both
-                    throw new Error("Invalid operands: " + tokens.join(" "));
+                    error("Invalid operands: " + tokens.join(" "));
 
                 if (opRegister) {
                     const rs1 = numberToUnsignedBinary(parseInt(tokens[1].slice(2)), 5);
@@ -256,19 +283,19 @@ function encode_instruction(
                     return "10" + "0".repeat(5) + instruction.op3_code + "0".repeat(5) + "1" + simm13;
                 }
 
-                throw new Error("Invalid operands: " + tokens.join(" "));
+                error("Invalid operands: " + tokens.join(" "));
             }else if (baseInstruction == "rett") {
-                if (tokens.length != 3) throw new Error("Invalid operands: " + tokens.join(" "));
+                if (tokens.length != 3) error("Invalid operands: " + tokens.join(" "));
 
                 if (!isRegister(tokens[1]) || !isImmediate(tokens[2], symbolTable))
-                    throw new Error("Invalid operands: " + tokens.join(" "));
+                    error("Invalid operands: " + tokens.join(" "));
 
                 const rs1 = numberToUnsignedBinary(parseInt(tokens[1].slice(2)), 5);
                 const simm13 = numberToTwosComplementBinary(getImmediateValue(tokens[2], symbolTable), 13);
                 return "10" + "0".repeat(5) + instruction.op3_code + rs1 + "1" + simm13;
             }
 			else if (instruction.operands === 3) {
-				if (tokens.length != 4) throw new Error("Invalid operands: " + tokens.join(" "));
+				if (tokens.length != 4) error("Invalid operands: " + tokens.join(" "));
 
 				if (isRegister(tokens[1]) && isRegister(tokens[2]) && (
                     isRegister(tokens[3]) || (baseInstruction == "wr" && tokens[3] == "%psr"))
@@ -282,7 +309,7 @@ function encode_instruction(
 					return "10" + rd + instruction.op3_code + rs1 + "0".repeat(9) + rs2;
 				} else if (
 					isRegister(tokens[1]) && 
-					(isImmediate(tokens[2], symbolTable) || symbolTable.has(tokens[2])) && 
+					(isImmediate(tokens[2], symbolTable)) && 
 					(isRegister(tokens[3]) || (baseInstruction == "wr" && tokens[3] == "%psr"))
 				) {
                     //Case: writing to %psr with wr
@@ -290,36 +317,31 @@ function encode_instruction(
                         tokens[3] = "%r0";
 					const rd: string = numberToUnsignedBinary(parseInt(tokens[3].slice(2)), 5);
 					const rs1: string = numberToUnsignedBinary(parseInt(tokens[1].slice(2)), 5);
-					const value = symbolTable.has(tokens[2]) 
-						? (symbolTable.get(tokens[2])!.value ?? symbolTable.get(tokens[2])!.address)
-						: getImmediateValue(tokens[2], symbolTable);
+					const value = getImmediateValue(tokens[2], symbolTable);
 					const simm13: string = numberToTwosComplementBinary(value, 13);
 					return "10" + rd + instruction.op3_code + rs1 + "1" + simm13;
 				}
 			}
-			throw new Error("Invalid operands: " + tokens.join(" "));
+			error("Invalid operands: " + tokens.join(" "));
+            return null;
 		case "11": // Memory
-			if (tokens.length < 3)
-				throw new Error("Invalid operands: " + tokens.join(" "));
-
 			const store_instruction = instruction.store_instruction;
 			const memory_parameter = instruction.memory_param;
 			
             if (baseInstruction == "halt") {
                 if (tokens.length != 1)
-                    throw new Error("Invalid operands: " + tokens.join(" "));
+                    error("Invalid operands: " + tokens.join(" "));
 
                 return "1".repeat(32);
             }else if (tokens.length == 3) {
 				// Handle [address] format
 				const memory_address = parseMemoryAddress(tokens[memory_parameter], store_instruction, false, symbolTable);
-				
 				if (memory_parameter != 0 && !memory_address?.valid) {
-					throw new Error("Invalid memory address: " + tokens[memory_parameter]);
+					error("Invalid memory address: " + tokens[memory_parameter]);
 				}
 
 				if (store_instruction && !isRegister(tokens[1])) 
-					throw new Error("Invalid operand: " + tokens[1]);
+					error("Invalid operand: " + tokens[1]);
 
 				const rd: string = memory_parameter == 2
 					? numberToUnsignedBinary(parseInt(tokens[1].slice(2)), 5)
@@ -345,13 +367,14 @@ function encode_instruction(
 							i = "0";
 							break;
 						case 'register-immediate':
+                            console.log(memory_address.value.immediate)
 							rs2_simm13 = numberToTwosComplementBinary(memory_address.value.immediate!, 13);
 							i = "1";
 							break;
 						case 'register-register':
 							rs2_simm13 = numberToTwosComplementBinary(
 								parseInt(memory_address.value.register2!.slice(2)),
-								5
+								13
 							);
 							i = "0";
 							break;
@@ -379,7 +402,8 @@ function encode_instruction(
 					{
 						const memory_address = parseMemoryAddress(tokens[3], store_instruction, true, symbolTable);
 						if (!memory_address?.valid || typeof memory_address.value?.immediate !== 'number') {
-							throw new Error("Invalid memory address: " + tokens[3]);
+							error("Invalid memory address: " + tokens[3]);
+                            return null;
 						}
 
 						const rd = numberToUnsignedBinary(parseInt(tokens[1].slice(2)), 5);
@@ -389,9 +413,11 @@ function encode_instruction(
 					}
 				}
 
+                if (tokens[2].includes("[") && isImmediate(tokens[2].slice(1, -1), symbolTable)) 
+                    tokens[2] = tokens[2].slice(1, -1);
 				// Return null if load instruction and any operand contains square brackets (memory address)
 				if (!store_instruction && tokens.some((token) => token.includes("["))) {
-					throw new Error("Invalid Operands: " + tokens.join(" "));
+					error("Invalid Operands: " + tokens.join(" "));
 				}
 
 				// First operand can be either register or immediate
@@ -412,9 +438,10 @@ function encode_instruction(
 				const isSecondReg = isRegister(
 					memory_parameter == 2 ? tokens[3] : tokens[2]
 				);
+
 				const isSecondImm =
 					isImmediate(memory_parameter == 2 ? tokens[3] : tokens[2], symbolTable) ||
-					store_instruction
+					(store_instruction
 						? isValidMemoryAddress(
 								memory_parameter == 2 ? tokens[3] : tokens[2],
 								store_instruction,
@@ -422,14 +449,15 @@ function encode_instruction(
                                 false,
 								symbolTable
 						  ).valid
-						: false;
+						: false);
+                
 
                 // Check for false operands; must be at least one register and no more than one immediate
 				if ((!isFirstReg && !isFirstImm) ||
 					(!isSecondReg && !isSecondImm) ||
 					(isFirstImm && isSecondImm) ||
 					(!isFirstReg && !isSecondReg)) {
-					throw new Error("Invalid Operands: " + tokens.join(" "));
+					error("Invalid Operands: " + tokens.join(" "));
 				}
 
                 //For easier access, make the second non-destination operand immediate always
@@ -442,7 +470,7 @@ function encode_instruction(
 				// Check destination register
 				if (!isRegister(
                     memory_parameter == 2 ? tokens[1] : tokens[3])) {
-					throw new Error("Invalid Operands: " + tokens.join(" "));
+					error("Invalid Operands: " + tokens.join(" "));
 				}
 
 				const rd = numberToUnsignedBinary(parseInt(
@@ -456,19 +484,21 @@ function encode_instruction(
                         (memory_parameter == 2 ? tokens[3] : tokens[2]).slice(2)), 5);
 					return "11" + rd + instruction.op3_code + rs1 + "0".repeat(9) + rs2;
 				} else {
-                    const simm13_value = parseMemoryAddress(tokens[memory_parameter == 2 ? 3 : 2], false, true, symbolTable);
-                    if (simm13_value === null || typeof simm13_value.value != "number") {
-                        throw new Error("Invalid operands: " + tokens.join(" "));
+                    const simm13_value = getImmediateValue(tokens[memory_parameter == 2 ? 3 : 2], symbolTable);
+                    if (simm13_value === null) {
+                        error("Invalid operands: " + tokens.join(" "));
+                        return null;
                     }
 					// Immediate-Register format
 					const simm13 = numberToTwosComplementBinary(
-						simm13_value.value,
+						simm13_value,
 						13
 					);
 					return "11" + rd + instruction.op3_code + rs1 + "1" + simm13;
 				}
 			}
-			throw new Error("Invalid operands: " + tokens.join(" "));
+			error("Invalid operands: " + tokens.join(" "));
+            return null;
 	}
 	return null;
 }
@@ -481,11 +511,9 @@ function expand_synthetic(
 
 	const opcode = tokens[0].toLowerCase();
 	const synthetic = syntheticInstructions[opcode as SyntheticInstruction];
-    console.log("Synthetic Instruction:", opcode);
-    console.log("Tokens:", tokens);
-	if (!synthetic) throw new Error("Invalid instruction: " + opcode);
+	if (!synthetic) error("Invalid instruction: " + opcode);
     if (synthetic.operands != tokens.length - 1)
-        throw new Error("Invalid operands: " + tokens.join(" "));
+        error("Invalid operands: " + tokens.join(" "));
 
     const instruction: string[] = [...synthetic.instruction];  // Create mutable copy
 
@@ -498,16 +526,16 @@ function expand_synthetic(
         if (instruction[i].startsWith("*")) {
             const token_index = parseInt(instruction[i].slice(1));
             if (token_index >= tokens.length)
-                throw new Error("Invalid operands: " + tokens.join(" "));
+                error("Invalid operands: " + tokens.join(" "));
 
             switch (synthetic.operand_types[token_index-1]) {
                 case "reg":
                     if (!isRegister(tokens[token_index]))
-                        throw new Error("Invalid operand: " + tokens[token_index]);
+                        error("Invalid operand: " + tokens[token_index]);
                     break;
                 case "reg_imm":
                     if (!isRegister(tokens[token_index]) && !isImmediate(tokens[token_index], symbolTable))
-                        throw new Error("Invalid operand: " + tokens[token_index]);
+                        error("Invalid operand: " + tokens[token_index]);
                     break;
             }
 
@@ -520,9 +548,9 @@ function expand_synthetic(
 
 function isRegister(token: string): boolean {
 	// Check if token starts with %r
-	if (!token.startsWith("%r")) return false;
+	if (!token.startsWith("%r") && !token.startsWith("%g")) return false;
 
-	// Get the number after %r
+	// Get the number after %r/%g
 	const regNum = parseInt(token.slice(2));
 
 	// Check if it's a valid number between 0 and 31
@@ -549,7 +577,7 @@ function getImmediateValue(token: string, symbolTable?: MemoryMap): number {
 
     // Handle pure hexadecimal numbers
     if (token.toLowerCase().startsWith('0x') && !/[+\-*/]/.test(token)) {
-        return twosComplementHexToNumber(token);
+        return unsignedHexToNumber(token);
     }
 
     // Handle pure symbol
@@ -572,7 +600,7 @@ function getImmediateValue(token: string, symbolTable?: MemoryMap): number {
 
             // Check for division by zero before evaluating
             if (/\/\s*0/.test(processedToken)) {
-                throw new Error("Division by zero");
+                error("Division by zero");
             }
 
             // Convert all numbers to decimal before evaluation
@@ -580,13 +608,13 @@ function getImmediateValue(token: string, symbolTable?: MemoryMap): number {
                 // Convert binary numbers
                 .replace(/[01]+b/g, match => {
                     const binPart = match.slice(0, -1);
-                    if (!/^[01]+$/.test(binPart)) throw new Error("Invalid binary");
+                    if (!/^[01]+$/.test(binPart)) error("Invalid binary");
                     const value = twosComplementBinaryToNumber(binPart);
                     return `(${value})`;
                 })
                 // Convert hex numbers
                 .replace(/0x[0-9a-fA-F]+/g, match => {
-                    const value = twosComplementHexToNumber(match);
+                    const value = unsignedHexToNumber(match);
                     return `(${value})`;
                 });
 
@@ -600,7 +628,7 @@ function getImmediateValue(token: string, symbolTable?: MemoryMap): number {
             if (e instanceof Error && e.message === "Division by zero") {
                 throw e;  // Re-throw division by zero error
             }
-            console.log("Error evaluating expression:", e);
+            error ("Error evaluating expression: " + e);
             return NaN;
         }
     }
@@ -609,44 +637,58 @@ function getImmediateValue(token: string, symbolTable?: MemoryMap): number {
 }
 
 function tokenize(instruction: string): string[] {
-	// Remove comments
-	instruction = instruction.split("!")[0].trim();
+    // Remove comments
+    instruction = instruction.split("!")[0].trim();
 
-	// Handle labels: Split on colon but keep it with the label
-	const labelMatch = instruction.match(/^([^:]+:)/);
-	let label = "";
-	if (labelMatch) {
-		label = labelMatch[1];
-		instruction = instruction.substring(labelMatch[1].length).trim();
-	}
+    // Handle labels: Split on colon but keep it with the label
+    const labelMatch = instruction.match(/^([^:]+:)/);
+    let label = "";
+    if (labelMatch) {
+        label = labelMatch[1];
+        instruction = instruction.substring(labelMatch[1].length).trim();
+    }
 
-	// Handle memory addresses: preserve content within brackets
-	instruction = instruction.replace(/\[(.*?)\]/g, (match) => {
-		// Remove spaces within brackets and keep brackets
-		return "[" + match.slice(1, -1).replace(/\s+/g, "") + "]";
-	});
+    // Handle memory addresses: preserve content within brackets
+    instruction = instruction.replace(/\[(.*?)\]/g, (match) => {
+        // Remove spaces within brackets and keep brackets
+        return "[" + match.slice(1, -1).replace(/\s+/g, "") + "]";
+    });
 
-	// Handle arithmetic expressions after registers
-	instruction = instruction.replace(/%r\d+\s*[-+*/\d\s]+/g, (match) => {
-		// Remove spaces in arithmetic expressions
-		return match.replace(/\s+/g, "");
-	});
+    // First split instruction into parts, preserving commas
+    const parts = instruction.match(/^(\S+)\s*(.*)/);
+    if (!parts) {
+        // If only instruction with no operands, handle normally
+        const tokens = instruction.split(/\s+/).filter(Boolean);
+        if (label) tokens.unshift(label);
+        return tokens;
+    }
 
-	// Remove commas
-	instruction = instruction.replace(/,/g, " ");
+    const [, instr, operands] = parts;
+    
+    // Split operands on commas, preserving arithmetic expressions
+    const operandTokens = operands
+        .split(/\s*,\s*/)  // Split on commas with optional whitespace
+        .map(op => op.trim())
+        .map(op => op.replace(/\s*([-+*/])\s*/g, "$1"))
+        .filter(Boolean);
 
-	// Split on periods to handle directives
-	instruction = instruction.replace(/\./g, " .");
+    // Combine the results
+    let tokens = [instr, ...operandTokens];
 
-	// Split on spaces and filter out empty strings
-	const tokens = instruction.split(/\s+/).filter(Boolean);
+    // Split on periods to handle directives
+    tokens = tokens.map(token => {
+        if (token.startsWith(".")) {
+            return token;
+        }
+        return token.replace(/\./g, " .");
+    }).flatMap(token => token.split(/\s+/));
 
-	// Add label if it exists
-	if (label) {
-		tokens.unshift(label);
-	}
+    // Add label if it exists
+    if (label) {
+        tokens.unshift(label);
+    }
 
-	return tokens;
+    return tokens.filter(Boolean).map(token => token.replace(/\s+/g, ''));
 }
 
 function isValidMemoryAddress(
@@ -674,12 +716,12 @@ function isValidMemoryAddress(
 			processedToken = processedToken
 				.replace(/[01]+b/g, match => {
 					const binPart = match.slice(0, -1);
-					if (!/^[01]+$/.test(binPart)) throw new Error("Invalid binary");
+					if (!/^[01]+$/.test(binPart)) error("Invalid binary");
 					const value = twosComplementBinaryToNumber(binPart);
 					return `(${value})`;
 				})
 				.replace(/0x[0-9a-fA-F]+/g, match => {
-					const value = twosComplementHexToNumber(match);
+					const value = unsignedHexToNumber(match);
 					return `(${value})`;
 				});
 
@@ -687,48 +729,35 @@ function isValidMemoryAddress(
 			if (symbolTable) {
 				// Handle multiplication first, including symbol multiplication
 				processedToken = processedToken.replace(/(\w+)\s*\*\s*(\w+)/g, (match, a, b) => {
-					console.log("Multiplication match:", match);
-					console.log("a:", a, "b:", b);
-					
-					let aValue: number | undefined;
+                    let aValue: number | undefined;
 					let bValue: number | undefined;
 
 					// Get values for both operands, checking for symbols first
 					if (symbolTable.has(a)) {
 						aValue = symbolTable.get(a)!.value ?? symbolTable.get(a)!.address;  // Use value if available
-						console.log("Symbol a:", a, "=", aValue);
 					} else if (a.toLowerCase().endsWith('b')) {
 						aValue = twosComplementBinaryToNumber(a.slice(0, -1));
-						console.log("Binary a:", a, "=", aValue);
 					} else if (a.toLowerCase().startsWith('0x')) {
-						aValue = twosComplementHexToNumber(a);
-						console.log("Hex a:", a, "=", aValue);
+						aValue = unsignedHexToNumber(a);
 					} else if (!isNaN(Number(a))) {
 						aValue = Number(a);
-						console.log("Number a:", a, "=", aValue);
 					}
 
 					if (symbolTable.has(b)) {
 						bValue = symbolTable.get(b)!.value ?? symbolTable.get(b)!.address;  // Use value if available
-						console.log("Symbol b:", b, "=", bValue);
 					} else if (b.toLowerCase().endsWith('b')) {
 						bValue = twosComplementBinaryToNumber(b.slice(0, -1));
-						console.log("Binary b:", b, "=", bValue);
 					} else if (b.toLowerCase().startsWith('0x')) {
-						bValue = twosComplementHexToNumber(b);
-						console.log("Hex b:", b, "=", bValue);
+						bValue = unsignedHexToNumber(b);
 					} else if (!isNaN(Number(b))) {
 						bValue = Number(b);
-						console.log("Number b:", b, "=", bValue);
 					}
 
 					// If both values are numbers, multiply them
 					if (typeof aValue === 'number' && typeof bValue === 'number') {
 						const result = `(${aValue * bValue})`;
-						console.log("Multiplication result:", result);
 						return result;
 					}
-					console.log("Could not evaluate multiplication");
 					return match;
 				});
 
@@ -748,7 +777,7 @@ function isValidMemoryAddress(
 				return { valid: true, value: value };  // numberToTwosComplementBinary will handle overflow
 			}
 		} catch (e) {
-			console.log("Error evaluating memory address:", e);
+			error("Error evaluating memory address: " + e);
 		}
 		return { valid: false };
 	}
@@ -759,7 +788,7 @@ function isValidMemoryAddress(
 	}
 
 	// Case 2: Single register
-	if (inner.startsWith("%r") && !inner.includes("+") && !inner.includes("-") && 
+	if ((inner.startsWith("%r") || inner.startsWith("%g")) && !inner.includes("+") && !inner.includes("-") && 
 		!inner.includes("*") && !inner.includes("/")) {
 		if (isRegister(inner)) {
 			// For store instructions, a single register must not be in brackets
@@ -781,7 +810,7 @@ function isValidMemoryAddress(
 	}
 
 	// Case 4: Complex expression with register
-	const regMatch = inner.match(/%r\d+/);
+	const regMatch = inner.match(/%r\d+|%g\d+/);
 	if (regMatch) {
 		const reg = regMatch[0];
 		if (!isRegister(reg)) return { valid: false };
@@ -807,7 +836,7 @@ function isValidMemoryAddress(
 				return { valid: true, value: `${reg}+${value}` };
 			}
 		} catch (e) {
-			console.log("Error evaluating register expression:", e);
+			error("Error evaluating register expression: " + e);
 		}
 	}
 
@@ -818,7 +847,7 @@ function isValidMemoryAddress(
 			return { valid: true, value: value };
 		}
 	} catch (e) {
-		console.log("Error evaluating pure arithmetic:", e);
+		error("Error evaluating pure arithmetic: " + e);
 	}
 
 	return { valid: false };
@@ -847,7 +876,7 @@ function parseMemoryAddress(
 	}
 
 	const validAddress = isValidMemoryAddress(expr, storeInstruction, immediateOnly, false, localSymbolTable);
-	if (!validAddress.valid || !validAddress.value) return null;
+	if (!validAddress.valid) return null;
 
 	// Handle single register
 	if (typeof validAddress.value === "string" && !validAddress.value.includes("+")) {
@@ -875,7 +904,7 @@ function parseMemoryAddress(
 		const [first, second] = validAddress.value.split("+").map(s => s.trim());
 
 		// Register + Register
-		if (second.startsWith("%r")) {
+		if (second.startsWith("%r") || second.startsWith("%g")) {
 			return { 
 				valid: true, 
 				value: {
@@ -887,7 +916,7 @@ function parseMemoryAddress(
 		}
 
 		// Register + Immediate
-		if (first.startsWith("%r")) 
+		if (first.startsWith("%r") || first.startsWith("%g")) 
 			return { 
 				valid: true, 
 				value: {
@@ -909,7 +938,7 @@ function validJMPLOperand(
     expr = expr.trim();
 
     // Find the first register
-    const regMatch = expr.match(/^%r\d+/);
+    const regMatch = expr.match(/^%r\d+|%g\d+/);
     if (!regMatch || !isRegister(regMatch[0])) {
         return { valid: false };
     }
@@ -945,10 +974,12 @@ function validJMPLOperand(
 
 // Test cases:
 if (require.main === module) {
+    /*
 	const testSymbolTable = new Map([
 		['START', { address: 2048 }],
 		['END', { address: 2052 }],
 		['OFFSET', { address: 2056 }],
+		['x', { address: 2060 }],  // Add the x symbol
 	]);
 
 	const memoryTests = [
@@ -981,7 +1012,8 @@ if (require.main === module) {
         ["wr", "%r0", "%r1", "%psr"],
         ["stb", "%r7", "%r3"],
         ["ta", "%r1"],
-        ["rett", "%r16", "4"]
+        ["rett", "%r16", "4"],
+        ["ld", "%r0", "[x]", "%r2"] 
 	];
 
 	console.log("Memory Instruction Tests:");
@@ -1018,4 +1050,11 @@ if (require.main === module) {
             console.log(`Testing ${test.join(" ")}: Error - ${message}`);
         }
     });
+    console.log(tokenize("ld [one], %g1"))
+    console.log(tokenize("add %r1, %r2, %r3")) // ["add", "%r1", "%r2", "%r3"]
+    console.log(tokenize("ba 4194304/2-4")) // ["ba", "4194304/2-4"]
+    console.log(tokenize("label: add %r1, %r2")) // ["label:", "add", "%r1", "%r2"]
+    console.log(tokenize("ld %r2 + %r0, %r3"))
+    */
+   console.log(getImmediateValue("0xff", new Map()))
 }
