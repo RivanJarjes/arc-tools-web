@@ -2,8 +2,8 @@
 
 import { Editor as MonacoEditor, useMonaco } from '@monaco-editor/react';
 import { useCallback, useEffect } from 'react';
-import { monarchLanguage, configuration, completionItemProvider } from './sparc-language';
-import { theme } from './sparc-theme';
+import { monarchLanguage, configuration, completionItemProvider } from './arc-language';
+import { theme } from './arc-theme';
 import type { editor } from 'monaco-editor';
 
 interface EditorProps {
@@ -19,7 +19,7 @@ interface EditorProps {
 export default function Editor({ 
   value, 
   onChange, 
-  language = 'sparc', 
+  language = 'arc', 
   height = '500px',
   readOnly = false,
   renderWhitespace = 'none',
@@ -30,18 +30,18 @@ export default function Editor({
   useEffect(() => {
     if (monaco) {
       // Register language
-      monaco.languages.register({ id: 'sparc' });
+      monaco.languages.register({ id: 'arc' });
 
       // Register language configuration
-      monaco.languages.setMonarchTokensProvider('sparc', monarchLanguage);
-      monaco.languages.setLanguageConfiguration('sparc', configuration);
+      monaco.languages.setMonarchTokensProvider('arc', monarchLanguage);
+      monaco.languages.setLanguageConfiguration('arc', configuration);
 
       // Register completions
-      monaco.languages.registerCompletionItemProvider('sparc', completionItemProvider);
+      monaco.languages.registerCompletionItemProvider('arc', completionItemProvider);
 
       // Register theme
-      monaco.editor.defineTheme('sparc-dark', theme as editor.IStandaloneThemeData);
-      monaco.editor.setTheme('sparc-dark');
+      monaco.editor.defineTheme('arc-dark', theme as editor.IStandaloneThemeData);
+      monaco.editor.setTheme('arc-dark');
     }
   }, [monaco]);
 
@@ -52,9 +52,9 @@ export default function Editor({
     [onChange]
   );
 
-  const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor) => {
+  const handleEditorDidMount = () => {
     // Ensure theme is set when editor mounts
-    monaco?.editor.setTheme('sparc-dark');
+    monaco?.editor.setTheme('arc-dark');
   };
 
   return (
@@ -64,7 +64,7 @@ export default function Editor({
       value={value}
       onChange={handleEditorChange}
       onMount={handleEditorDidMount}
-      theme="sparc-dark"
+      theme="arc-dark"
       options={{
         minimap: { enabled: false },
         fontSize: 14,

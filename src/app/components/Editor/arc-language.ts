@@ -114,7 +114,7 @@ export const completionItemProvider: languages.CompletionItemProvider = {
         label: instruction,
         kind: languages.CompletionItemKind.Keyword,
         insertText: instruction,
-        detail: 'SPARC Instruction',
+        detail: 'ARC Instruction',
         range: range
       })),
 
@@ -153,7 +153,7 @@ export function updateLabels(text: string, editor: MonacoEditor.IStandaloneCodeE
     if (!monaco) return;
 
     // Create a new language with updated rules
-    monaco.languages.setMonarchTokensProvider('sparc', {
+    monaco.languages.setMonarchTokensProvider('arc', {
         ...monarchLanguage,
         tokenizer: {
             root: [

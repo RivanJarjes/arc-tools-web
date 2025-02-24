@@ -1,4 +1,10 @@
-import type { MemoryMap } from "./types";
+export interface SymbolEntry {
+    address: number;
+    value?: number;
+}
+
+export type MemoryMap = Map<string, SymbolEntry>; 
+
 import {
 	numberToUnsignedBinary,
 	numberToTwosComplementBinary,
@@ -27,6 +33,10 @@ let currentLine: number = 0;
 
 function error(message: string) {
     throw new Error(`Error on line ${currentLine}: ${message}`);
+}
+
+function warning(message: string) {
+    console.log("_WARNING on line " + currentLine + ": " + message);
 }
 
 export interface AssemblerOutput {
@@ -68,14 +78,21 @@ function first_pass(instructions: string[]): MemoryMap {
 		if (!tokens.length) continue;
 
 		if (tokens[0].endsWith(":")) {
-			const label = tokens[0].slice(0, -1);
-			if (/^[a-zA-Z0-9]+$/.test(label)) {
-				// Store only the address
-				symbolMap.set(label, { address: pc });
-			}
-			tokens.shift(); // Remove label from tokens
-            pc+= 4;
-            continue;
+            if (assembling) {
+                const label = tokens[0].slice(0, -1);
+                if (/^[a-zA-Z0-9]+$/.test(label)) {
+                    // Store only the address
+                    symbolMap.set(label, { address: pc});
+                }
+            }
+            tokens.shift(); // Remove label from tokens
+            if (!(tokens.length) || !(tokens[0].slice(1) in pseudoOps)) {
+                if (tokens.length && tokens.every(token => isImmediate(token, symbolMap)))
+                    pc += 4 * tokens.length;
+                else
+                    pc += 4;
+                continue;
+            }
 		}
 
 		// Handle pseudo-ops
@@ -88,8 +105,30 @@ function first_pass(instructions: string[]): MemoryMap {
 					assembling = false;
 					continue;
 				case ".org":
-					pc = parseInt(tokens[1]);
+                    if (symbolMap.has(tokens[1])) {
+                        pc = symbolMap.get(tokens[1])!.address;
+                    } else {
+                        pc = parseInt(tokens[1]);
+                    }
+                    if (isNaN(pc))
+                        pc = 0;
+
+                    if (pc % 4 != 0)
+                        error("Memory address must be word aligned (a multiple of 4): " + tokens[1]);
 					continue;
+                case ".dwb":
+                    let dwb_value: number;
+                    if (symbolMap.has(tokens[1])) {
+                        dwb_value = symbolMap.get(tokens[1])!.address;
+                    } else {
+                        dwb_value = parseInt(tokens[1]);
+                    }
+
+                    if (isNaN(dwb_value))
+                        dwb_value = 0;
+
+                    pc += dwb_value * 4;
+                    continue;
 			}
 		}
 
@@ -129,7 +168,7 @@ function second_pass(instructions: string[], symbolTable: MemoryMap): string[][]
 		}
 
 		// Handle pseudo-ops
-		if (tokens[0] &&tokens[0].slice(1) in pseudoOps) {
+		if (tokens[0] && tokens[0].slice(1) in pseudoOps) {
 			switch (tokens[0]) {
 				case ".begin":
 					assembling = true;
@@ -140,13 +179,32 @@ function second_pass(instructions: string[], symbolTable: MemoryMap): string[][]
 					assembling = false;
 					continue;
 				case ".org":
-                    const org_value = parseInt(tokens[1]);
-                    if (isNaN(org_value))
-                        error("Invalid operand: " + tokens[1]);
+                    let org_value: number;
+                    if (symbolTable.has(tokens[1])) 
+                        org_value = symbolTable.get(tokens[1])!.address;
+                    else 
+                        org_value = parseInt(tokens[1]);
+                    if (isNaN(org_value)){
+                        org_value = 0;
+                        warning("Undefined or forward label reference to " + tokens[1]);
+                    }
                     else if (org_value % 4 != 0)
                         error("Memory address must be word aligned (a multiple of 4): " + tokens[1]);
                     pc = org_value;
 					continue;
+                case ".dwb":
+                        let dwb_value: number;
+                        
+                        if (symbolTable.has(tokens[1])) 
+                            dwb_value = symbolTable.get(tokens[1])!.address;
+                        else 
+                            dwb_value = parseInt(tokens[1]);
+                        
+                        if (isNaN(dwb_value))
+                            dwb_value = 0;
+    
+                        pc += dwb_value * 4;
+                        continue;
 			}
 		}
 
@@ -163,12 +221,11 @@ function second_pass(instructions: string[], symbolTable: MemoryMap): string[][]
 		// Handle actual instructions
 		const baseInstruction = tokens[0];
 
-        machineCode.push([]);
-        machineCode[machineCode.length - 1].push(numberToTwosComplementBinary(pc, 32));
-
 		if (baseInstruction in instructionSet) {
 			const encoded = encode_instruction(tokens, symbolTable, pc);
 			if (encoded !== null) {
+                machineCode.push([]);
+                machineCode[machineCode.length - 1].push(numberToTwosComplementBinary(pc, 32));
 				machineCode[machineCode.length - 1].push(encoded);
 				pc += 4;
 			} else {
@@ -178,13 +235,19 @@ function second_pass(instructions: string[], symbolTable: MemoryMap): string[][]
 			const expanded = expand_synthetic(tokens, symbolTable);
             const encoded = encode_instruction(expanded, symbolTable, pc);
             if (encoded !== null) {
+                machineCode.push([]);
+                machineCode[machineCode.length - 1].push(numberToTwosComplementBinary(pc, 32));
                 machineCode[machineCode.length - 1].push(encoded);
                 pc += 4;
             } else 
                 error("Invalid instruction: " + instruction);
-		} else if (tokens.length == 1 && isImmediate(tokens[0], symbolTable)) {
-			machineCode[machineCode.length - 1].push(numberToTwosComplementBinary(getImmediateValue(tokens[0], symbolTable), 32));
-			pc += 4;
+		} else if (tokens.every(token => isImmediate(token, symbolTable))) {
+            for (const token of tokens) {
+                machineCode.push([]);
+                machineCode[machineCode.length - 1].push(numberToTwosComplementBinary(pc, 32));
+                machineCode[machineCode.length - 1].push(numberToTwosComplementBinary(getImmediateValue(token, symbolTable), 32));
+                pc += 4;
+            }
 		} else {
 			error("Invalid instruction: " + instruction);
 		}
@@ -367,7 +430,6 @@ function encode_instruction(
 							i = "0";
 							break;
 						case 'register-immediate':
-                            console.log(memory_address.value.immediate)
 							rs2_simm13 = numberToTwosComplementBinary(memory_address.value.immediate!, 13);
 							i = "1";
 							break;
@@ -548,7 +610,7 @@ function expand_synthetic(
 
 function isRegister(token: string): boolean {
 	// Check if token starts with %r
-	if (!token.startsWith("%r") && !token.startsWith("%g")) return false;
+	if (!token.startsWith("%r") && !token.startsWith("%g") && !token.startsWith("%i")) return false;
 
 	// Get the number after %r/%g
 	const regNum = parseInt(token.slice(2));
@@ -688,7 +750,7 @@ function tokenize(instruction: string): string[] {
         tokens.unshift(label);
     }
 
-    return tokens.filter(Boolean).map(token => token.replace(/\s+/g, ''));
+    return tokens.filter(Boolean).map(token => token.replace(/[\s,]+/g, ''));
 }
 
 function isValidMemoryAddress(
@@ -788,7 +850,7 @@ function isValidMemoryAddress(
 	}
 
 	// Case 2: Single register
-	if ((inner.startsWith("%r") || inner.startsWith("%g")) && !inner.includes("+") && !inner.includes("-") && 
+	if ((inner.startsWith("%r") || inner.startsWith("%g") || inner.startsWith("%i")) && !inner.includes("+") && !inner.includes("-") && 
 		!inner.includes("*") && !inner.includes("/")) {
 		if (isRegister(inner)) {
 			// For store instructions, a single register must not be in brackets
@@ -810,7 +872,7 @@ function isValidMemoryAddress(
 	}
 
 	// Case 4: Complex expression with register
-	const regMatch = inner.match(/%r\d+|%g\d+/);
+	const regMatch = inner.match(/%r\d+|%g\d+|%i\d+/);
 	if (regMatch) {
 		const reg = regMatch[0];
 		if (!isRegister(reg)) return { valid: false };
@@ -904,7 +966,7 @@ function parseMemoryAddress(
 		const [first, second] = validAddress.value.split("+").map(s => s.trim());
 
 		// Register + Register
-		if (second.startsWith("%r") || second.startsWith("%g")) {
+		if (second.startsWith("%r") || second.startsWith("%g") || second.startsWith("%i")) {
 			return { 
 				valid: true, 
 				value: {
@@ -916,7 +978,7 @@ function parseMemoryAddress(
 		}
 
 		// Register + Immediate
-		if (first.startsWith("%r") || first.startsWith("%g")) 
+		if (first.startsWith("%r") || first.startsWith("%g") || first.startsWith("%i")) 
 			return { 
 				valid: true, 
 				value: {
@@ -938,7 +1000,7 @@ function validJMPLOperand(
     expr = expr.trim();
 
     // Find the first register
-    const regMatch = expr.match(/^%r\d+|%g\d+/);
+    const regMatch = expr.match(/^%r\d+|%g\d+|%i\d+/);
     if (!regMatch || !isRegister(regMatch[0])) {
         return { valid: false };
     }
@@ -970,91 +1032,4 @@ function validJMPLOperand(
     }
 
     return { valid: false };
-}
-
-// Test cases:
-if (require.main === module) {
-    /*
-	const testSymbolTable = new Map([
-		['START', { address: 2048 }],
-		['END', { address: 2052 }],
-		['OFFSET', { address: 2056 }],
-		['x', { address: 2060 }],  // Add the x symbol
-	]);
-
-	const memoryTests = [
-		["ld", "[24+2*24-24]", "%r2"],
-        ["ld", "%r1+4+44-4*3", "%r2"],
-        ["add", "%r1", "100110b", "%r2"],
-        ["st", "%r0", "[2084]"],
-        ["st", "%r2", "%r0", "%r1"],
-        ["st", "%r2", "%r0", "[2100]"],
-        ["ld", "[0xff]", "%r2"],
-        ["ld", "[0xff+0x10]", "%r2"],
-        ["ld", "[%r1+0xa0]", "%r2"],
-        ["st", "%r2", "[0xfff]"],
-        ["add", "%r1", "0xff", "%r2"],
-        ["ld", "[24+0xa*2]", "%r2"],
-        ["ld", "[0xa+%r1]", "%r2"],
-        ["ld", "[1010b]", "%r2"],
-        ["ld", "[1010b+0x10]", "%r2"],
-        ["ld", "[%r1+1100b]", "%r2"],
-        ["st", "%r2", "[1111b]"],
-        ["add", "%r1", "1010b", "%r2"],
-        ["ld", "[24+1010b*2]", "%r2"],
-        ["ld", "[1010b+%r1]", "%r2"],
-        ["ld", "[START]", "%r2"],                    // Load from symbol
-        ["ld", "[START+0x10]", "%r2"],              // Symbol + hex
-        ["ld", "[%r1+OFFSET]", "%r2"],              // Register + symbol
-        ["st", "%r2", "[END]"],                     // Store to symbol
-        ["add", "%r1", "START", "%r2"],             // ALU with symbol
-        ["ld", "[START+OFFSET*2]", "%r2"],          // Symbol arithmetic
-        ["wr", "%r0", "%r1", "%psr"],
-        ["stb", "%r7", "%r3"],
-        ["ta", "%r1"],
-        ["rett", "%r16", "4"],
-        ["ld", "%r0", "[x]", "%r2"] 
-	];
-
-	console.log("Memory Instruction Tests:");
-	memoryTests.forEach((test) => {
-		try {
-			const result = encode_instruction(test, testSymbolTable, 0);
-			if (result === null) {
-				console.log(`Testing ${test.join(" ")}: `, "Invalid");
-			} else {
-				console.log(`Testing ${test.join(" ")}: `, binaryToHex(result) + ", " + result);
-			}
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			console.log(`Testing ${test.join(" ")}: Error - ${message}`);
-		}
-	});
-
-    const syntheticTests = [
-        ["mov", "12", "%r1"],
-        ["nop"]
-    ];
-
-    console.log("Synthetic Instruction Tests:");
-    syntheticTests.forEach((test) => {
-        try {
-            const result = expand_synthetic(test, testSymbolTable);
-            if (result === null) {
-                console.log(`Testing ${test.join(" ")}: `, "Invalid");
-            } else {
-                console.log(`Testing ${test.join(" ")}: `, result);
-            }
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.log(`Testing ${test.join(" ")}: Error - ${message}`);
-        }
-    });
-    console.log(tokenize("ld [one], %g1"))
-    console.log(tokenize("add %r1, %r2, %r3")) // ["add", "%r1", "%r2", "%r3"]
-    console.log(tokenize("ba 4194304/2-4")) // ["ba", "4194304/2-4"]
-    console.log(tokenize("label: add %r1, %r2")) // ["label:", "add", "%r1", "%r2"]
-    console.log(tokenize("ld %r2 + %r0, %r3"))
-    */
-   console.log(getImmediateValue("0xff", new Map()))
 }

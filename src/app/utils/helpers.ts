@@ -217,7 +217,7 @@ export function numberToTwosComplementHex(num: number, bits?: number): string {
     return binaryToHex(bin, digits);
 }
 
-export default {
+const helpers = {
     numberToUnsignedBinary,
     numberToOnesComplementBinary,
     numberToTwosComplementBinary,
@@ -230,5 +230,11 @@ export default {
     unsignedHexToNumber,
     onesComplementHexToNumber,
     twosComplementHexToNumber,
-    numberToUnsignedHex
+    numberToUnsignedHex,
+    numberToOnesComplementHex,
+    numberToTwosComplementHex,
 };
+
+export default helpers;
+
+
