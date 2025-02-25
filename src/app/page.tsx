@@ -464,6 +464,24 @@ export default function Home() {
                   cpu.loadBinaryCode(); // Call with no parameter to reload last binary
                   refreshProgramCounter();
                   refreshMemory();
+                  
+                  // Clear all registers
+                  handleClearRegisters();
+                  
+                  // Reset condition code flags
+                  cpu.setCCR({
+                    n: false,
+                    z: false,
+                    v: false,
+                    c: false
+                  });
+                  setCpuFlags({
+                    negative: false,
+                    zero: false,
+                    overflow: false,
+                    carry: false
+                  });
+                  
                   // Update memory view base location to match new PC
                   const newPC = cpu.getPC();
                   // Round down to nearest multiple of 32 (8 words) to show context
@@ -475,7 +493,32 @@ export default function Home() {
                   setTerminalHistory('Error reloading binary code: ' + (error instanceof Error ? error.message : 'Unknown error'));
                 }
               }}
-              onStep={() => {/* TODO: Add step handler */}}
+              onStep={() => {
+                try {
+                  // Execute one instruction
+                  cpu.executeInstruction();
+                  
+                  // Update UI state
+                  refreshRegisters();
+                  refreshProgramCounter();
+                  refreshMemory();
+                  
+                  // Update condition code flags from CPU
+                  const ccr = cpu.getCCR();
+                  setCpuFlags({
+                    negative: ccr.n,
+                    zero: ccr.z,
+                    overflow: ccr.v,
+                    carry: ccr.c
+                  });
+                  
+                  // Update terminal history
+                  setTerminalHistory('Executed instruction successfully');
+                } catch (error) {
+                  console.error('Error executing instruction:', error);
+                  setTerminalHistory('Error executing instruction: ' + (error instanceof Error ? error.message : 'Unknown error'));
+                }
+              }}
               onRun={() => {/* TODO: Add run handler */}}
               onStop={() => {/* TODO: Add stop handler */}}
             />

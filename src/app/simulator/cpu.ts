@@ -112,6 +112,18 @@ export class CPU {
     } {
         return this.ccr;
     }
+
+    public setCCR(ccr: {
+        n: boolean | undefined,
+        z: boolean | undefined,
+        v: boolean | undefined,
+        c: boolean | undefined
+    }): void {
+        if (ccr.n !== undefined) this.ccr.n = ccr.n;
+        if (ccr.z !== undefined) this.ccr.z = ccr.z;
+        if (ccr.v !== undefined) this.ccr.v = ccr.v;
+        if (ccr.c !== undefined) this.ccr.c = ccr.c;
+    }
     
     // Setter for PC
     public setPC(value: number): void {
@@ -190,6 +202,10 @@ export class CPU {
     }
 
     public loadBinaryCode(binaryCode: string = ""): void {
+        for (let i = 0; i < 32; i++) {
+            this.registers[i] = 0;
+        }
+
         // If no parameter provided, use the last binary code
         if (binaryCode != "") {
             // Split the string by newlines and filter out empty lines
@@ -198,14 +214,15 @@ export class CPU {
             this.binaryCode = lines.map(line => line.split('\t').filter(part => part.trim() !== ''));
         }
         
+        const editedBinaryCode: string[][] = this.binaryCode.map(line => [...line]);
         // If first line is a single value, it's the PC
-        if (this.binaryCode[0].length === 1) {
-            this.pc = twosComplementHexToNumber(this.binaryCode[0][0], 32);
-            this.binaryCode.shift();
+        if (editedBinaryCode[0].length === 1) {
+            this.pc = twosComplementHexToNumber(editedBinaryCode[0][0], 32);
+            editedBinaryCode.shift();
         }
 
         // Process each instruction line
-        for (const line of this.binaryCode) {
+        for (const line of editedBinaryCode) {
             if (line.length !== 2) throw new Error(`Invalid line format: ${line}`);
             const [address, instruction] = line;
             try {
@@ -219,7 +236,7 @@ export class CPU {
 
     public interpretInstruction(machWord: string): string[]{
         if (machWord.length !== 8) throw new Error(`Invalid machine word: ${machWord}`);
-        if (machWord == "0".repeat(8)) return ["none"]
+        if (machWord == "0".repeat(8)) return ["nop"];
 
         const instruction = hexToBinary(machWord, 32);
         if (instruction.length !== 32) throw new Error(`Invalid instruction: ${machWord}`);
@@ -259,7 +276,7 @@ export class CPU {
             }
             case "01": {
                 const disp_bin = instruction.slice(2, 32);
-                const disp = unsignedBinaryToNumber(disp_bin);
+                const disp = twosComplementBinaryToNumber(disp_bin);
                 return ["call", disp.toString()];
             }
             case "10": {
@@ -286,7 +303,13 @@ export class CPU {
                     return [instruction_type, "%r" + source_reg_1, "%r" + sources_reg2, "%r" + dest_reg];
                 } else {
                     const imm_bin = instruction.slice(19,32);
-                    const imm = twosComplementBinaryToNumber(imm_bin);
+                    let imm = twosComplementBinaryToNumber(imm_bin);
+                    if (instruction_type == "sra" || instruction_type == "srl" || instruction_type == "sll") {
+                        if (imm > 31) 
+                            imm = imm % 32;
+                        else if (imm < 0)
+                            imm = 32 - (Math.abs(imm) % 32);
+                    }
                     return [instruction_type, "%r" + source_reg_1, imm.toString(), "%r" + dest_reg];
                 }
             }
@@ -330,6 +353,21 @@ export class CPU {
             }
         }
         return ["unknown"];
+    }
+
+    public executeInstruction(): void {
+        const instruction = this.safeReadMemory(this.pc);
+
+        const decoded_instruction = this.interpretInstruction(instruction);
+
+        const old_pc = this.pc;
+        this.pc += 4;
+
+        if (instruction == "0".repeat(8)) return;
+
+        const instruction_def = instructionSet[decoded_instruction[0] as keyof typeof instructionSet];
+        if (!('execute' in instruction_def)) throw new Error(`Instruction ${decoded_instruction[0]} does not have an execute function`);
+            instruction_def.execute(this, decoded_instruction);
     }
 
     public safeReadMemory(address: number): string {

@@ -1,9 +1,3 @@
-import { 
-	instructionSet, 
-	syntheticInstructions, 
-	pseudoOps,
-    SyntheticInstruction
-} from "./instructions";
 import { CPU } from "./cpu";
 
 export class Simulator {

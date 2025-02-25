@@ -1,3 +1,5 @@
+import { CPU } from "./cpu";
+import { twosComplementBinaryToNumber, numberToTwosComplementBinary } from "../utils/helpers";
 /*  op_code:
         "00" - SETHI / BRANCH
         "01" - CALL
@@ -225,6 +227,24 @@ export const instructionSet = {
             op3_code: "000000",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for add");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let result;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        result = cpu.getRegister(source_reg1) + cpu.getRegister(source_reg2);
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        result = cpu.getRegister(source_reg1) + imm;
+                    }
+                    cpu.setRegister(dest_reg, result);
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         addcc: {
             // Add with condition codes
@@ -232,6 +252,42 @@ export const instructionSet = {
             op3_code: "010000",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for addcc");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    const operand_1 = cpu.getRegister(source_reg1);
+                    let operand_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        operand_2 = cpu.getRegister(source_reg2);
+                    } else 
+                        operand_2 = parseInt(operands[2]);
+                    const result = operand_1 + operand_2;
+                    cpu.setRegister(dest_reg, result);
+                    
+                    // Overflow: occurs when adding two numbers of the same sign produces a result of the opposite sign
+                    const overflow: boolean = (operand_1 >= 0 && operand_2 >= 0 && result < 0) || 
+                                         (operand_1 < 0 && operand_2 < 0 && result >= 0);
+                    
+                    // Carry: occurs when unsigned addition would need a 33rd bit
+                    const unsignedResult = BigInt(BigInt.asUintN(32, BigInt(operand_1))) + 
+                                         BigInt(BigInt.asUintN(32, BigInt(operand_2)));
+
+                    const carry: boolean = unsignedResult > BigInt(0xFFFFFFFF);
+
+                    cpu.setCCR({
+                        n: result < 0,
+                        z: result == 0,
+                        v: overflow,
+                        c: carry
+                    });
+
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         and: {
             // AND
@@ -239,6 +295,32 @@ export const instructionSet = {
             op3_code: "000001",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for and");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                        
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+                    let result = "";
+                    for (let i = 0; i < 32; i++) {
+                        result += bin_1[i] === "1" && bin_2[i] === "1" ? "1" : "0";
+                    }
+                    cpu.setRegister(dest_reg, twosComplementBinaryToNumber(result));
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         andcc: {
             // AND with condition codes
@@ -246,6 +328,40 @@ export const instructionSet = {
             op3_code: "010001",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for andcc");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                        
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+                    let result_bin = "";
+                    for (let i = 0; i < 32; i++) 
+                        result_bin += bin_1[i] === "1" && bin_2[i] === "1" ? "1" : "0";
+                    
+                    const result = twosComplementBinaryToNumber(result_bin);
+                    cpu.setRegister(dest_reg, result);
+
+                    cpu.setCCR({
+                        n: result < 0,
+                        z: result == 0,
+                        v: false,
+                        c: false
+                    });
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         andn: {
             // AND NOT
@@ -253,6 +369,32 @@ export const instructionSet = {
             op3_code: "000101",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for andn");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                        
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+                    let result = "";
+                    for (let i = 0; i < 32; i++) {
+                        result += !(bin_1[i] === "1" && bin_2[i] === "1") ? "1" : "0";
+                    }
+                    cpu.setRegister(dest_reg, twosComplementBinaryToNumber(result));
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         andncc: {
             // AND NOT with condition codes
@@ -260,6 +402,40 @@ export const instructionSet = {
             op3_code: "010101",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for andncc");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                        
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+                    let result_bin = "";
+                    for (let i = 0; i < 32; i++) 
+                        result_bin += !(bin_1[i] === "1" && bin_2[i] === "1") ? "1" : "0";
+                    
+                    const result = twosComplementBinaryToNumber(result_bin);
+                    cpu.setRegister(dest_reg, result);
+
+                    cpu.setCCR({
+                        n: result < 0,
+                        z: result == 0,
+                        v: false,
+                        c: false
+                    });
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         jmpl: {
             // Jump To New Address
@@ -274,6 +450,32 @@ export const instructionSet = {
             op3_code: "000010",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for andn");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                        
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+                    let result = "";
+                    for (let i = 0; i < 32; i++) {
+                        result += bin_1[i] === "1" || bin_2[i] === "1" ? "1" : "0";
+                    }
+                    cpu.setRegister(dest_reg, twosComplementBinaryToNumber(result));
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         orcc: {
             // OR with condition codes
@@ -281,6 +483,40 @@ export const instructionSet = {
             op3_code: "010010",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for orcc");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+
+                    let result_bin = "";
+                    for (let i = 0; i < 32; i++) 
+                        result_bin += bin_1[i] === "1" || bin_2[i] === "1" ? "1" : "0";
+                    
+                    const result = twosComplementBinaryToNumber(result_bin);
+                    cpu.setRegister(dest_reg, result);
+
+                    cpu.setCCR({
+                        n: result < 0,
+                        z: result == 0,
+                        v: false,
+                        c: false
+                    });
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         orn: {
             // OR NOT
@@ -288,6 +524,32 @@ export const instructionSet = {
             op3_code: "000110",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for orn");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                        
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+                    let result = "";
+                    for (let i = 0; i < 32; i++) {
+                        result += bin_1[i] === "0" && bin_2[i] === "0" ? "1" : "0";
+                    }
+                    cpu.setRegister(dest_reg, twosComplementBinaryToNumber(result));
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         orncc: {
             // OR NOT with condition codes
@@ -295,6 +557,40 @@ export const instructionSet = {
             op3_code: "010110",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for orncc");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+
+                    let result_bin = "";
+                    for (let i = 0; i < 32; i++) 
+                        result_bin += bin_1[i] === "0" && bin_2[i] === "0" ? "1" : "0";
+                    
+                    const result = twosComplementBinaryToNumber(result_bin);
+                    cpu.setRegister(dest_reg, result);
+
+                    cpu.setCCR({
+                        n: result < 0,
+                        z: result == 0,
+                        v: false,
+                        c: false
+                    });
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         rd: {
             // Read a value
@@ -316,6 +612,31 @@ export const instructionSet = {
             op3_code: "100101",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for sll");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg = parseInt(operands[1].slice(2));
+                    let shift_amount;
+                    if (operands[2].startsWith("%r")) {
+                        shift_amount = cpu.getRegister(parseInt(operands[2].slice(2)));
+                    } else {
+                        shift_amount = parseInt(operands[2]);
+                    }
+                    if (shift_amount > 31) shift_amount = shift_amount % 32;
+                    else if (shift_amount < 0) shift_amount = 32 - (Math.abs(shift_amount) % 32);
+                    else if (shift_amount == 0) {
+                        cpu.setRegister(dest_reg, cpu.getRegister(source_reg));
+                        return;
+                    }
+                    let result_bin = numberToTwosComplementBinary(cpu.getRegister(source_reg), 32); 
+                    result_bin = result_bin.slice(shift_amount) + "0".repeat(shift_amount);
+                    const result = twosComplementBinaryToNumber(result_bin);
+                    cpu.setRegister(dest_reg, result);
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         sra: {
             // Shift bit right arithmetic
@@ -323,6 +644,32 @@ export const instructionSet = {
             op3_code: "100111",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for sra");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg = parseInt(operands[1].slice(2));
+                    let shift_amount;
+                    if (operands[2].startsWith("%r")) {
+                        shift_amount = cpu.getRegister(parseInt(operands[2].slice(2)));
+                    } else {
+                        shift_amount = parseInt(operands[2]);
+                    }
+                    if (shift_amount > 31) shift_amount = shift_amount % 32;
+                    else if (shift_amount < 0) shift_amount = 32 - (Math.abs(shift_amount) % 32);
+                    else if (shift_amount == 0) {
+                        cpu.setRegister(dest_reg, cpu.getRegister(source_reg));
+                        return;
+                    }
+                    let result_bin = numberToTwosComplementBinary(cpu.getRegister(source_reg), 32); 
+                    const msb = result_bin[0]; 
+                    result_bin = msb.repeat(shift_amount) + result_bin.slice(0, 32 - shift_amount);
+                    const result = twosComplementBinaryToNumber(result_bin);
+                    cpu.setRegister(dest_reg, result);
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         srl: {
             // Shift bit right logical
@@ -330,6 +677,31 @@ export const instructionSet = {
             op3_code: "100110",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for srl");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg = parseInt(operands[1].slice(2));
+                    let shift_amount;
+                    if (operands[2].startsWith("%r")) {
+                        shift_amount = cpu.getRegister(parseInt(operands[2].slice(2)));
+                    } else {
+                        shift_amount = parseInt(operands[2]);
+                    }
+                    if (shift_amount > 31) shift_amount = shift_amount % 32;
+                    else if (shift_amount < 0) shift_amount = 32 - (Math.abs(shift_amount) % 32);
+                    else if (shift_amount == 0) {
+                        cpu.setRegister(dest_reg, cpu.getRegister(source_reg));
+                        return;
+                    }
+                    let result_bin = numberToTwosComplementBinary(cpu.getRegister(source_reg), 32); 
+                    result_bin = "0".repeat(shift_amount) + result_bin.slice(0, 32 - shift_amount);
+                    const result = twosComplementBinaryToNumber(result_bin);
+                    cpu.setRegister(dest_reg, result);
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         sub: {
             // Subtract
@@ -337,6 +709,24 @@ export const instructionSet = {
             op3_code: "000100",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for sub");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        const result = cpu.getRegister(source_reg1) - cpu.getRegister(source_reg2);
+                        cpu.setRegister(dest_reg, result);
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        const result = cpu.getRegister(source_reg1) - imm;
+                        cpu.setRegister(dest_reg, result);
+                    }
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         subcc: {
             // Subtract with condition codes
@@ -344,6 +734,41 @@ export const instructionSet = {
             op3_code: "010100",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for addcc");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    const operand_1 = cpu.getRegister(source_reg1);
+                    let operand_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        operand_2 = cpu.getRegister(source_reg2);
+                    } else 
+                        operand_2 = parseInt(operands[2]);
+                    const result = operand_1 - operand_2;
+                    cpu.setRegister(dest_reg, result);
+                    
+                    // Overflow: occurs when subtracting numbers of opposite signs produces a result with unexpected sign
+                    const overflow = (operand_1 >= 0 && operand_2 < 0 && result < 0) || 
+                                   (operand_1 < 0 && operand_2 >= 0 && result >= 0);
+                    
+                    // Carry (borrow): occurs when first operand is less than second operand in unsigned arithmetic
+                    const unsignedOp1 = BigInt(BigInt.asUintN(32, BigInt(operand_1)));
+                    const unsignedOp2 = BigInt(BigInt.asUintN(32, BigInt(operand_2)));
+                    const carry = unsignedOp1 < unsignedOp2;
+
+                    cpu.setCCR({
+                        n: result < 0,
+                        z: result == 0,
+                        v: overflow,
+                        c: carry
+                    });
+
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         ta: {
             // Trap
@@ -365,6 +790,40 @@ export const instructionSet = {
             op3_code: "000111",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for xnor");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                        
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+                    let result_bin = "";
+                    for (let i = 0; i < 32; i++) {
+                        result_bin += (bin_1[i] === bin_2[i]) ? "1" : "0";
+                    }
+                    const result = twosComplementBinaryToNumber(result_bin);
+                    cpu.setRegister(dest_reg, result);
+
+                    cpu.setCCR({
+                        n: result < 0,
+                        z: result == 0,
+                        v: false,
+                        c: false
+                    });
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         xnorcc: {
             // XNOR with condition codes
@@ -372,6 +831,32 @@ export const instructionSet = {
             op3_code: "010111",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for xnor");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                        
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+                    let result = "";
+                    for (let i = 0; i < 32; i++) {
+                        result += (bin_1[i] === bin_2[i]) ? "1" : "0";
+                    }
+                    cpu.setRegister(dest_reg, twosComplementBinaryToNumber(result));
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         xor: {
             // XOR
@@ -379,6 +864,33 @@ export const instructionSet = {
             op3_code: "000011",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for xor");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                        
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+                    let result = "";
+                    for (let i = 0; i < 32; i++) {
+                        result += (bin_1[i] === "1" && bin_2[i] === "0") || 
+                            (bin_1[i] === "0" && bin_2[i] === "1") ? "1" : "0";
+                    }
+                    cpu.setRegister(dest_reg, twosComplementBinaryToNumber(result));
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         xorcc: {
             // XOR with condition codes
@@ -386,6 +898,41 @@ export const instructionSet = {
             op3_code: "010011",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for xor");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg1 = parseInt(operands[1].slice(2));
+                    let bin_1;
+                    let bin_2;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = parseInt(operands[2].slice(2));
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
+                        
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
+                        bin_2 = numberToTwosComplementBinary(imm, 32);
+                    }
+                    let result_bin = "";
+                    for (let i = 0; i < 32; i++) {
+                        result_bin += (bin_1[i] === "1" && bin_2[i] === "0") || 
+                            (bin_1[i] === "0" && bin_2[i] === "1") ? "1" : "0";
+                    }
+                    const result = twosComplementBinaryToNumber(result_bin);
+                    cpu.setRegister(dest_reg, result);
+
+                    cpu.setCCR({
+                        n: result < 0,
+                        z: result == 0,
+                        v: false,
+                        c: false
+                    });
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         /*
             MEMORY
