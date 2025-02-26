@@ -101,6 +101,11 @@ export const instructionSet = {
             cond_code: "1000",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch always
+                cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bcc: {
             // Branch if carry clear
@@ -109,6 +114,11 @@ export const instructionSet = {
             cond_code: "1101",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if not C
+                if (!cpu.getCCR().c) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bcs: {
             // Branch if carry set
@@ -117,6 +127,11 @@ export const instructionSet = {
             cond_code: "0101",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if C
+                if (cpu.getCCR().c) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         be: {
             // Branch if equal
@@ -125,6 +140,11 @@ export const instructionSet = {
             cond_code: "0001",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if Z
+                if (cpu.getCCR().z) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bg: {
             // Branch if greater
@@ -133,6 +153,11 @@ export const instructionSet = {
             cond_code: "1010",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if not (Z or (N xor V))
+                if (!(cpu.getCCR().z || cpu.getCCR().n != cpu.getCCR().v)) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bge: {
             // Branch if greater than or equal
@@ -141,6 +166,10 @@ export const instructionSet = {
             cond_code: "1011",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                if (!(cpu.getCCR().n != cpu.getCCR().v)) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bgu: {
             // Branch if greater unsigned
@@ -149,6 +178,11 @@ export const instructionSet = {
             cond_code: "1100",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if not (C or Z)
+                if (!(cpu.getCCR().c || cpu.getCCR().z)) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bl: {
             // Branch if less
@@ -157,6 +191,11 @@ export const instructionSet = {
             cond_code: "0011",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if N xor V
+                if (cpu.getCCR().n != cpu.getCCR().v) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         ble: {
             // Branch if less than or equal
@@ -165,6 +204,11 @@ export const instructionSet = {
             cond_code: "0010",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if Z or (N xor V)
+                if (cpu.getCCR().z || cpu.getCCR().n != cpu.getCCR().v) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bleu: {
             // Branch if less than or equal to unsigned
@@ -173,6 +217,11 @@ export const instructionSet = {
             cond_code: "0100",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if C or Z
+                if (cpu.getCCR().c || cpu.getCCR().z) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bn: {
             // Branch never
@@ -181,6 +230,10 @@ export const instructionSet = {
             cond_code: "0000",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for bn");
+                // Do nothing
+            }
         },
         bne: {
             // Branch if not equal
@@ -189,6 +242,11 @@ export const instructionSet = {
             cond_code: "1001",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if not Z
+                if (!cpu.getCCR().z) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bneg: {
             // Branch if negative
@@ -197,6 +255,11 @@ export const instructionSet = {
             cond_code: "0110",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if N
+                if (cpu.getCCR().n) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bpos: {
             // Branch if positive
@@ -205,6 +268,11 @@ export const instructionSet = {
             cond_code: "1110",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if not N
+                if (!cpu.getCCR().n) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bvc: {
             // Branch if overflow clear
@@ -213,6 +281,11 @@ export const instructionSet = {
             cond_code: "1111",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if not V
+                if (!cpu.getCCR().v) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         bvs: {
             // Branch if overflow set
@@ -221,6 +294,11 @@ export const instructionSet = {
             cond_code: "0111",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 2) throw new Error("Invalid number of operands for ba");
+                // Branch if V
+                if (cpu.getCCR().v) cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+            }
         },
         /*
             CALL

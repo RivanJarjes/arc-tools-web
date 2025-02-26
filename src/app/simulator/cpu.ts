@@ -22,6 +22,8 @@ export class CPU {
         c: boolean  // Carry
     };
     
+    // Next Branch Displacement
+    private next_branch_disp: number = 0;
     // Main memory (using sparse pages)
     private readonly PAGE_SIZE = 4096; // 4KB pages
     private readonly TOTAL_MEMORY = Math.pow(2, 32); // 4GB address space
@@ -49,6 +51,10 @@ export class CPU {
         this.initializeSpecialRegisters();
     }
     
+    public setNextBranchDisp(disp: number): void {
+        this.next_branch_disp = disp;
+    }
+
     public clearMemory(): void {
         // Reinitialize memory pages to empty
         this.memoryPages = new Map();
@@ -378,6 +384,11 @@ export class CPU {
         } catch (e) {
             console.error(`_${e instanceof Error ? e.message : 'Unknown error'}`);
             throw e;
+        }
+
+        if (this.next_branch_disp != 0) {
+            this.pc = old_pc + this.next_branch_disp;
+            this.next_branch_disp = 0;
         }
     }
 
