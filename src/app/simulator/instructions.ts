@@ -308,6 +308,17 @@ export const instructionSet = {
             op_code: "01",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                try {
+                    if (operands.length != 2) throw new Error("Invalid number of operands for call");
+                    // Branch always
+                    cpu.setNextBranchDisp(parseInt(operands[1]) * 4);
+                    // Return address goes to %r15
+                    cpu.setRegister(15, cpu.getPC());
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         /*
             ALU
@@ -534,6 +545,21 @@ export const instructionSet = {
             op3_code: "111000",
             operands: 2,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for jmpl");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const source_reg = cpu.getRegister(parseInt(operands[1].slice(2)));
+                    const source_imm = parseInt(operands[2]);
+                    const address = source_reg + source_imm;
+                    const displacement = address - cpu.getPC();
+                    if (displacement % 4 != 0) throw new Error("Invalid address for jmpl");
+                    cpu.setNextBranchDisp(displacement);
+                    if (dest_reg != 0) cpu.setRegister(dest_reg, cpu.getPC());
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         or: {
             // OR
@@ -688,7 +714,22 @@ export const instructionSet = {
             op_code: "10",
             op3_code: "101001",
             operands: 2,
-            memory_param: 0
+            memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for rd");
+                try {
+                    const dest_reg = parseInt(operands[3].slice(2));
+                    const cc_bin = "0".repeat(8) + (cpu.getCCR().n ? "1" : "0") + 
+                        (cpu.getCCR().z ? "1" : "0") + 
+                        (cpu.getCCR().v ? "1" : "0") + 
+                        (cpu.getCCR().c ? "1" : "0") + "0".repeat(20);
+                    console.log(cc_bin);
+                    const cc = twosComplementBinaryToNumber(cc_bin);
+                    cpu.setRegister(dest_reg, cc);
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         rett: {
             // Return from subroutine
@@ -873,7 +914,22 @@ export const instructionSet = {
             op_code: "10",
             op3_code: "110001",
             operands: 3,
-            memory_param: 0,
+            memory_param: 0, 
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 4) throw new Error("Invalid number of operands for wr");
+                try {
+                    const source_reg = parseInt(operands[1].slice(2));
+                    const value = numberToTwosComplementBinary(cpu.getRegister(source_reg), 32);
+                    console.log(value);
+                    const n: boolean = value[8] === "1";
+                    const z: boolean = value[9] === "1";
+                    const v: boolean = value[10] === "1";
+                    const c: boolean = value[11] === "1";
+                    cpu.setCCR({n, z, v, c});
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         xnor: {
             // XOR with NOT

@@ -1,4 +1,3 @@
-import { clear } from "console";
 import { twosComplementHexToNumber, hexToBinary, 
     unsignedBinaryToNumber, twosComplementBinaryToNumber } from "../utils/helpers";
 
@@ -313,6 +312,12 @@ export class CPU {
                 if (i_bool == "0") {
                     const sources_reg2_bin = instruction.slice(27,32);
                     const sources_reg2 = unsignedBinaryToNumber(sources_reg2_bin);
+
+                    if (instruction_type == "wr") 
+                        return [instruction_type, "%r" + source_reg_1, "%r" + sources_reg2, "%psr"];
+                    else if (instruction_type == "rd")
+                        return [instruction_type, "%psr", "%r" + sources_reg2, "%r" + dest_reg];
+
                     return [instruction_type, "%r" + source_reg_1, "%r" + sources_reg2, "%r" + dest_reg];
                 } else {
                     const imm_bin = instruction.slice(19,32);
@@ -369,13 +374,16 @@ export class CPU {
     }
 
     public executeInstruction(): void {
+        // Get the instruction
         const instruction = this.safeReadMemory(this.pc);
         const decoded_instruction = this.interpretInstruction(instruction);
-        const old_pc = this.pc;
-        this.pc += 4;
 
-        if (instruction === "0".repeat(8)) return;
+        if (instruction === "0".repeat(8))  {
+            this.pc += 4;
+            return;
+        }
 
+        // Get the instruction definition
         const instruction_def = instructionSet[decoded_instruction[0] as keyof typeof instructionSet];
         try {
             if ('execute' in instruction_def) {
@@ -386,10 +394,13 @@ export class CPU {
             throw e;
         }
 
+        // Update PC
         if (this.next_branch_disp != 0) {
-            this.pc = old_pc + this.next_branch_disp;
+            this.pc += this.next_branch_disp;
             this.next_branch_disp = 0;
-        }
+        }else 
+            this.pc += 4;
+        
     }
 
     public safeReadMemory(address: number, size: 1 | 2 | 4 = 4): string {

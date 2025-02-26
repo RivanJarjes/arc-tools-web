@@ -311,10 +311,44 @@ export default function Home() {
   };
 
   const handleFlagChange = (flag: keyof typeof cpuFlags, value: boolean) => {
+    // Update UI state
     setCpuFlags(prev => ({
       ...prev,
       [flag]: value
     }));
+    
+    // Map UI flag names to CPU flag names
+    let ccrFlag: 'n' | 'z' | 'v' | 'c';
+    
+    // Determine which CPU flag to update
+    switch (flag) {
+      case 'negative':
+        ccrFlag = 'n';
+        break;
+      case 'zero':
+        ccrFlag = 'z';
+        break;
+      case 'overflow':
+        ccrFlag = 'v';
+        break;
+      case 'carry':
+        ccrFlag = 'c';
+        break;
+    }
+    
+    // Create update object
+    const update: any = {
+      n: undefined,
+      z: undefined,
+      v: undefined,
+      c: undefined
+    };
+    
+    // Set the specific flag
+    update[ccrFlag] = value;
+    
+    // Update the CPU's condition code register
+    cpu.setCCR(update);
   };
 
   // Function to refresh register display from CPU
