@@ -1,3 +1,4 @@
+import { clear } from "console";
 import { twosComplementHexToNumber, hexToBinary, 
     unsignedBinaryToNumber, twosComplementBinaryToNumber } from "../utils/helpers";
 
@@ -81,7 +82,7 @@ export class CPU {
             throw new Error(`Invalid register index: ${index}`);
         }
         // Convert to unsigned 32-bit integer for hex display
-        return this.registers[index] >>> 0;
+        return this.registers[index];
     }
     
     // Setter for registers
@@ -143,8 +144,9 @@ export class CPU {
             throw new Error(`Memory access must be aligned to ${size} bytes: ${address}`);
         }
         
-        const pageNumber = this.getPageNumber(address);
-        const offset = this.getPageOffset(address);
+        const last_word = Math.floor(address / 4) * 4;
+        const pageNumber = this.getPageNumber(last_word);
+        const offset = this.getPageOffset(last_word);
         
         // Check if access crosses page boundary
         if (offset + size > this.PAGE_SIZE) {
@@ -156,9 +158,9 @@ export class CPU {
         
         switch(size) {
             case 1:
-                return value.slice(6, 8); // Last 2 chars for 1 byte
+                return value.slice((address-last_word)*2, (address-last_word)*2 + 2); // Any 2 chars for 1 byte
             case 2:
-                return value.slice(4, 8); // Last 4 chars for 2 bytes
+                return value.slice((address-last_word)*2, (address-last_word)*2 + 4); // Any 4 chars for 2 bytes
             case 4:
                 return value; // All 8 chars for 4 bytes
             default:
@@ -175,8 +177,9 @@ export class CPU {
             throw new Error(`Memory access must be aligned to ${size} bytes: ${address}`);
         }
         
-        const pageNumber = this.getPageNumber(address);
-        const offset = this.getPageOffset(address);
+        const last_word = Math.floor(address / 4) * 4;
+        const pageNumber = this.getPageNumber(last_word);
+        const offset = this.getPageOffset(last_word);
         
         // Check if access crosses page boundary
         if (offset + size > this.PAGE_SIZE) {
@@ -189,12 +192,14 @@ export class CPU {
         // For smaller sizes, we need to preserve the other bytes
         if (size < 4) {
             const existingValue = page.get(offset) || '00000000';
+            const word_diff = (address - last_word)*2;
             if (size === 1) {
                 // Replace last 2 chars
-                paddedValue = existingValue.slice(0, 6) + value.padStart(2, '0');
+                console.log(word_diff);
+                paddedValue = (word_diff != 0 ? existingValue.slice(0, word_diff) : "") + value + (word_diff != 6 ? existingValue.slice(word_diff + 2) : "");
             } else if (size === 2) {
                 // Replace last 4 chars
-                paddedValue = existingValue.slice(0, 4) + value.padStart(4, '0');
+                paddedValue = (word_diff != 0 ? existingValue.slice(0, word_diff) : "") + value + (word_diff != 4 ? existingValue.slice(word_diff + 4) : "");
             }
         }
 
@@ -202,6 +207,8 @@ export class CPU {
     }
 
     public loadBinaryCode(binaryCode: string = ""): void {
+        this.clearMemory();
+
         for (let i = 0; i < 32; i++) {
             this.registers[i] = 0;
         }
@@ -295,7 +302,7 @@ export class CPU {
                         instr.op3_code === op3_code
                     )?.[0];
                 
-                if (!instruction_type) throw new Error(`Unknown instruction: ${instruction}`);
+                if (!instruction_type) return [twosComplementHexToNumber(machWord, 32).toString()];
 
                 if (i_bool == "0") {
                     const sources_reg2_bin = instruction.slice(27,32);
@@ -330,7 +337,7 @@ export class CPU {
                         'store_instruction' in instr
                     )?.[0] as keyof typeof instructionSet;
                 
-                if (!instruction_type) throw new Error(`Unknown instruction: ${instruction}`);
+                if (!instruction_type) return [twosComplementHexToNumber(machWord, 32).toString()];
                 const instr = instructionSet[instruction_type];
 
                 if (i_bool == "0") {
@@ -352,30 +359,34 @@ export class CPU {
                 }
             }
         }
-        return ["unknown"];
+        return [twosComplementHexToNumber(machWord, 32).toString()];
     }
 
     public executeInstruction(): void {
         const instruction = this.safeReadMemory(this.pc);
-
         const decoded_instruction = this.interpretInstruction(instruction);
-
         const old_pc = this.pc;
         this.pc += 4;
 
-        if (instruction == "0".repeat(8)) return;
+        if (instruction === "0".repeat(8)) return;
 
         const instruction_def = instructionSet[decoded_instruction[0] as keyof typeof instructionSet];
-        if (!('execute' in instruction_def)) throw new Error(`Instruction ${decoded_instruction[0]} does not have an execute function`);
-            instruction_def.execute(this, decoded_instruction);
+        try {
+            if ('execute' in instruction_def) {
+                instruction_def.execute(this, decoded_instruction);
+            }
+        } catch (e) {
+            console.error(`_${e instanceof Error ? e.message : 'Unknown error'}`);
+            throw e;
+        }
     }
 
-    public safeReadMemory(address: number): string {
+    public safeReadMemory(address: number, size: 1 | 2 | 4 = 4): string {
         try {
-            return this.readMemory(address);
+            return this.readMemory(address, size);
         } catch {
             // Return zeros if memory doesn't exist or there's an error
-            return '00000000';
+            return size === 4 ? '00000000' : (size === 2 ? '0000' : '00');
         }
     }
 }

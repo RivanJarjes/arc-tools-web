@@ -1,5 +1,5 @@
 import { CPU } from "./cpu";
-import { twosComplementBinaryToNumber, numberToTwosComplementBinary } from "../utils/helpers";
+import { twosComplementBinaryToNumber, numberToTwosComplementBinary, twosComplementHexToNumber, numberToTwosComplementHex, numberToUnsignedHex, hexToBinary, binaryToHex } from "../utils/helpers";
 /*  op_code:
         "00" - SETHI / BRANCH
         "01" - CALL
@@ -77,6 +77,19 @@ export const instructionSet = {
             cond_code: "0000",
             operands: 2,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 3) throw new Error("Invalid number of operands for sethi");
+                try {
+                    const dest_reg = parseInt(operands[2].slice(2));
+                    const imm = parseInt(operands[1]);
+                    
+                    const result_bin = numberToTwosComplementBinary(imm, 22) + "0".repeat(10);
+                    const result = twosComplementBinaryToNumber(result_bin);
+                    cpu.setRegister(dest_reg, result);
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         /*
             BRANCH
@@ -945,6 +958,40 @@ export const instructionSet = {
             memory_param: 1,
             bytes_loaded: 4,
             store_instruction: false,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 3 && operands.length != 4) throw new Error("Invalid number of operands for ld");
+                try {
+                    const dest_reg = parseInt(operands[operands.length - 1].slice(2));
+                    //operand 1
+                    let operand_1;
+                    if (operands[1].startsWith("%r")) 
+                        operand_1 = cpu.getRegister(parseInt(operands[1].slice(2)));
+                    else 
+                        operand_1 = parseInt(operands[1].substring(1, operands[1].length - 1));
+                    //operand 2
+                    let operand_2 = 0;
+                    if (operands.length == 4) {
+                        if (operands[2].startsWith("%r")) 
+                            operand_2 = cpu.getRegister(parseInt(operands[2].slice(2)));
+                        else 
+                            operand_2 = parseInt(operands[2].substring(1, operands[2].length - 1));
+                    }
+                    const memory_address = operand_1 + operand_2;
+                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    // If not word-aligned
+                    if (memory_address % 4 != 0){ 
+                        const standard_address = twosComplementHexToNumber(
+                                numberToUnsignedHex(memory_address, 32), 32);
+                        const hex_address = numberToTwosComplementHex(memory_address, 32);
+                        throw new Error("Memory Operation Failed: address " + standard_address + " (" + 
+                            hex_address + ") is not word-aligned");
+                    }
+                    const result = cpu.safeReadMemory(memory_address);
+                    cpu.setRegister(dest_reg, twosComplementHexToNumber(result, 32));
+                } catch (e) {
+                    throw new Error(e as string);
+                }
+            }
         },
         ldsb: {
             // Load a signed byte
@@ -954,6 +1001,35 @@ export const instructionSet = {
             memory_param: 1,
             bytes_loaded: 1,
             store_instruction: false,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 3 && operands.length != 4) throw new Error("Invalid number of operands for ldsb");
+                try {
+                    const dest_reg = parseInt(operands[operands.length - 1].slice(2));
+                    //operand 1
+                    let operand_1;
+                    if (operands[1].startsWith("%r")) 
+                        operand_1 = cpu.getRegister(parseInt(operands[1].slice(2)));
+                    else 
+                        operand_1 = parseInt(operands[1].substring(1, operands[1].length - 1));
+                    //operand 2
+                    let operand_2 = 0;
+                    if (operands.length == 4) {
+                        if (operands[2].startsWith("%r")) 
+                            operand_2 = cpu.getRegister(parseInt(operands[2].slice(2)));
+                        else 
+                            operand_2 = parseInt(operands[2].substring(1, operands[2].length - 1));
+                    }
+                    const memory_address = operand_1 + operand_2;
+                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    // No word-alignment required
+                    const result_bin = hexToBinary(cpu.safeReadMemory(memory_address, 1));
+                    const sign_bit = result_bin[0];
+                    const result = twosComplementBinaryToNumber(sign_bit.repeat(24) + result_bin);
+                    cpu.setRegister(dest_reg, result);
+                } catch (e) {
+                    throw new Error(e as string);
+                }
+            }
         },
         ldsh: {
             // Load a signed half-word (2 bytes)
@@ -963,6 +1039,42 @@ export const instructionSet = {
             memory_param: 1,
             bytes_loaded: 2,
             store_instruction: false,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 3 && operands.length != 4) throw new Error("Invalid number of operands for ldsb");
+                try {
+                    const dest_reg = parseInt(operands[operands.length - 1].slice(2));
+                    //operand 1
+                    let operand_1;
+                    if (operands[1].startsWith("%r")) 
+                        operand_1 = cpu.getRegister(parseInt(operands[1].slice(2)));
+                    else 
+                        operand_1 = parseInt(operands[1].substring(1, operands[1].length - 1));
+                    //operand 2
+                    let operand_2 = 0;
+                    if (operands.length == 4) {
+                        if (operands[2].startsWith("%r")) 
+                            operand_2 = cpu.getRegister(parseInt(operands[2].slice(2)));
+                        else 
+                            operand_2 = parseInt(operands[2].substring(1, operands[2].length - 1));
+                    }
+                    const memory_address = operand_1 + operand_2;
+                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    // If not word-aligned
+                    if (memory_address % 2 != 0){ 
+                        const standard_address = twosComplementHexToNumber(
+                                numberToUnsignedHex(memory_address, 32), 32);
+                        const hex_address = numberToTwosComplementHex(memory_address, 32);
+                        throw new Error("Memory Operation Failed: address " + standard_address + " (" + 
+                            hex_address + ") is not word-aligned");
+                    }
+                    const result_bin = hexToBinary(cpu.safeReadMemory(memory_address, 2));
+                    const sign_bit = result_bin[0];
+                    const result = twosComplementBinaryToNumber(sign_bit.repeat(16) + result_bin);
+                    cpu.setRegister(dest_reg, result);
+                } catch (e) {
+                    throw new Error(e as string);
+                }
+            }
         },
         ldub: {
             // Load an unsigned byte
@@ -972,6 +1084,33 @@ export const instructionSet = {
             memory_param: 1,
             bytes_loaded: 1,
             store_instruction: false,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 3 && operands.length != 4) throw new Error("Invalid number of operands for ldub");
+                try {
+                    const dest_reg = parseInt(operands[operands.length - 1].slice(2));
+                    //operand 1
+                    let operand_1;
+                    if (operands[1].startsWith("%r")) 
+                        operand_1 = cpu.getRegister(parseInt(operands[1].slice(2)));
+                    else 
+                        operand_1 = parseInt(operands[1].substring(1, operands[1].length - 1));
+                    //operand 2
+                    let operand_2 = 0;
+                    if (operands.length == 4) {
+                        if (operands[2].startsWith("%r")) 
+                            operand_2 = cpu.getRegister(parseInt(operands[2].slice(2)));
+                        else 
+                            operand_2 = parseInt(operands[2].substring(1, operands[2].length - 1));
+                    }
+                    const memory_address = operand_1 + operand_2;
+                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    // No word-alignment required
+                    const result = cpu.safeReadMemory(memory_address, 1);
+                    cpu.setRegister(dest_reg, twosComplementHexToNumber("0".repeat(6) + result, 32));
+                } catch (e) {
+                    throw new Error(e as string);
+                }
+            }
         },
         lduh: {
             // Load an unsigned half-word (2 bytes)
@@ -981,6 +1120,40 @@ export const instructionSet = {
             memory_param: 1,
             bytes_loaded: 2,
             store_instruction: false,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 3 && operands.length != 4) throw new Error("Invalid number of operands for ldub");
+                try {
+                    const dest_reg = parseInt(operands[operands.length - 1].slice(2));
+                    //operand 1
+                    let operand_1;
+                    if (operands[1].startsWith("%r")) 
+                        operand_1 = cpu.getRegister(parseInt(operands[1].slice(2)));
+                    else 
+                        operand_1 = parseInt(operands[1].substring(1, operands[1].length - 1));
+                    //operand 2
+                    let operand_2 = 0;
+                    if (operands.length == 4) {
+                        if (operands[2].startsWith("%r")) 
+                            operand_2 = cpu.getRegister(parseInt(operands[2].slice(2)));
+                        else 
+                            operand_2 = parseInt(operands[2].substring(1, operands[2].length - 1));
+                    }
+                    const memory_address = operand_1 + operand_2;
+                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    // If not word-aligned
+                    if (memory_address % 2 != 0){ 
+                        const standard_address = twosComplementHexToNumber(
+                                numberToUnsignedHex(memory_address, 32), 32);
+                        const hex_address = numberToTwosComplementHex(memory_address, 32);
+                        throw new Error("Memory Operation Failed: address " + standard_address + " (" + 
+                            hex_address + ") is not word-aligned");
+                    }
+                    const result = cpu.safeReadMemory(memory_address, 2);
+                    cpu.setRegister(dest_reg, twosComplementHexToNumber("0".repeat(4) + result, 32));
+                } catch (e) {
+                    throw new Error(e as string);
+                }
+            }
         },
         st: {
             // Store a value
@@ -989,7 +1162,38 @@ export const instructionSet = {
             operands: 2,
             memory_param: 2,
             bytes_stored: 4,
-            store_instruction: true
+            store_instruction: true,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 3 && operands.length != 4) throw new Error("Invalid number of operands for st");
+                try {
+                    const source_reg = cpu.getRegister(parseInt(operands[1].slice(2)));
+                    let memory_parameter_1;
+                    if (operands[2].startsWith("%r")) 
+                        memory_parameter_1 = cpu.getRegister(parseInt(operands[2].slice(2)));
+                    else 
+                        memory_parameter_1 = parseInt(operands[2].substring(1, operands[2].length - 1));
+                    let memory_parameter_2 = 0;
+                    if (operands.length == 4) {
+                        if (operands[3].startsWith("%r")) 
+                            memory_parameter_2 = cpu.getRegister(parseInt(operands[3].slice(2)));
+                        else 
+                            memory_parameter_2 = parseInt(operands[3].substring(1, operands[3].length - 1));
+                    }
+                    const memory_address = memory_parameter_1 + memory_parameter_2;
+                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    // If not word-aligned
+                    if (memory_address % 4 != 0){ 
+                        const standard_address = twosComplementHexToNumber(
+                                numberToUnsignedHex(memory_address, 32), 32);
+                        const hex_address = numberToTwosComplementHex(memory_address, 32);
+                        throw new Error("Memory Operation Failed: address " + standard_address + " (" + 
+                            hex_address + ") is not word-aligned");
+                    }
+                    cpu.writeMemory(memory_address, numberToTwosComplementHex(source_reg, 32));
+                } catch (e) {
+                    throw new Error(e as string);
+                }
+            }
         },
         stb: {
             // Store a byte
@@ -998,7 +1202,34 @@ export const instructionSet = {
             operands: 2,
             memory_param: 2,
             bytes_stored: 1,
-            store_instruction: true
+            store_instruction: true,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 3 && operands.length != 4) throw new Error("Invalid number of operands for stb");
+                try {
+                    const source_reg_whole = cpu.getRegister(parseInt(operands[1].slice(2)));
+                    const source_reg_whole_bin = numberToTwosComplementBinary(source_reg_whole, 32);
+                    const source_reg_byte = source_reg_whole_bin.slice(-8);
+                    const source_reg = binaryToHex(source_reg_byte);
+                    let memory_parameter_1;
+                    if (operands[2].startsWith("%r")) 
+                        memory_parameter_1 = cpu.getRegister(parseInt(operands[2].slice(2)));
+                    else 
+                        memory_parameter_1 = parseInt(operands[2].substring(1, operands[2].length - 1));
+                    let memory_parameter_2 = 0;
+                    if (operands.length == 4) {
+                        if (operands[3].startsWith("%r")) 
+                            memory_parameter_2 = cpu.getRegister(parseInt(operands[3].slice(2)));
+                        else 
+                            memory_parameter_2 = parseInt(operands[3].substring(1, operands[3].length - 1));
+                    }
+                    const memory_address = memory_parameter_1 + memory_parameter_2;
+                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    // Do not need to check word-alignment
+                    cpu.writeMemory(memory_address, source_reg, 1);
+                } catch (e) {
+                    throw new Error(e as string);
+                }
+            }
         },
         sth: {
             // Store a half-word (2 bytes)
@@ -1007,7 +1238,41 @@ export const instructionSet = {
             operands: 2,
             memory_param: 2,
             bytes_stored: 2,
-            store_instruction: true
+            store_instruction: true,
+            execute: (cpu: CPU, operands: string[]) => {
+                if (operands.length != 3 && operands.length != 4) throw new Error("Invalid number of operands for stb");
+                try {
+                    const source_reg_whole = cpu.getRegister(parseInt(operands[1].slice(2)));
+                    const source_reg_whole_bin = numberToTwosComplementBinary(source_reg_whole, 32);
+                    const source_reg_byte = source_reg_whole_bin.slice(-16);
+                    const source_reg = binaryToHex(source_reg_byte);
+                    let memory_parameter_1;
+                    if (operands[2].startsWith("%r")) 
+                        memory_parameter_1 = cpu.getRegister(parseInt(operands[2].slice(2)));
+                    else 
+                        memory_parameter_1 = parseInt(operands[2].substring(1, operands[2].length - 1));
+                    let memory_parameter_2 = 0;
+                    if (operands.length == 4) {
+                        if (operands[3].startsWith("%r")) 
+                            memory_parameter_2 = cpu.getRegister(parseInt(operands[3].slice(2)));
+                        else 
+                            memory_parameter_2 = parseInt(operands[3].substring(1, operands[3].length - 1));
+                    }
+                    const memory_address = memory_parameter_1 + memory_parameter_2;
+                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    // If not word-aligned
+                    if (memory_address % 2 != 0){ 
+                        const standard_address = twosComplementHexToNumber(
+                                numberToUnsignedHex(memory_address, 32), 32);
+                        const hex_address = numberToTwosComplementHex(memory_address, 32);
+                        throw new Error("Memory Operation Failed: address " + standard_address + " (" + 
+                            hex_address + ") is not word-aligned");
+                    }
+                    cpu.writeMemory(memory_address, source_reg, 2);
+                } catch (e) {
+                    throw new Error(e as string);
+                }
+            }
         },
         /*
             OTHER
@@ -1025,7 +1290,7 @@ export const instructionSet = {
 export const syntheticInstructions = {
     not: {
         // Not a value
-        instruction: ["xor", "*1", "%r0", "*2"],
+        instruction: ["xnor", "*1", "%r0", "*2"],
         operands: 2,
         operand_types: ["reg", "reg"]
     },

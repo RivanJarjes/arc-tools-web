@@ -30,6 +30,7 @@ interface MemoryAddressValue {
 
 export { instructionSet, syntheticInstructions, pseudoOps };
 let currentLine: number = 0;
+let starting_address: number = NaN;
 
 function error(message: string) {
     throw new Error(`Error on line ${currentLine}: ${message}`);
@@ -83,6 +84,8 @@ function first_pass(instructions: string[]): MemoryMap {
                 if (/^[a-zA-Z0-9]+$/.test(label)) {
                     // Store only the address
                     symbolMap.set(label, { address: pc});
+					if (label == "main")
+						starting_address = pc;
                 }
             }
             tokens.shift(); // Remove label from tokens
@@ -215,7 +218,10 @@ function second_pass(instructions: string[], symbolTable: MemoryMap): string[][]
         if (tokens[1] == ".equ") continue;
 
         if (machineCode.length == 0) {
-            machineCode.push([numberToTwosComplementBinary(pc, 32)]);
+			if (isNaN(starting_address))
+				machineCode.push([numberToTwosComplementBinary(pc, 32)]);
+			else
+				machineCode.push([numberToTwosComplementBinary(starting_address, 32)]);
         }
 
 		// Handle actual instructions
@@ -471,6 +477,23 @@ function encode_instruction(
 						const rd = numberToUnsignedBinary(parseInt(tokens[1].slice(2)), 5);
 						const rs1 = numberToUnsignedBinary(parseInt(tokens[2].slice(2)), 5);
 						const simm13 = numberToTwosComplementBinary(memory_address.value.immediate, 13);
+						return "11" + rd + instruction.op3_code + rs1 + "1" + simm13;
+					}
+
+					// Handle register + base + immediate format
+					if (isRegister(tokens[1]) && // Source register
+						isRegister(tokens[2]) && // Base register
+						isImmediate(tokens[3], symbolTable)) // Immediate
+					{
+						const memory_address = getImmediateValue(tokens[3], symbolTable);
+						if (!memory_address) {
+							error("Invalid memory address: " + tokens[3]);
+                            return null;
+						}
+
+						const rd = numberToUnsignedBinary(parseInt(tokens[1].slice(2)), 5);
+						const rs1 = numberToUnsignedBinary(parseInt(tokens[2].slice(2)), 5);
+						const simm13 = numberToTwosComplementBinary(memory_address, 13);
 						return "11" + rd + instruction.op3_code + rs1 + "1" + simm13;
 					}
 				}

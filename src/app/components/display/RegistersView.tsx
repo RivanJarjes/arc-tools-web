@@ -88,7 +88,7 @@ export function RegistersView({
               onChange={(e) => handleInputChange(i, e.target.value)}
               onBlur={() => handleInputBlur(i)}
               className={`bg-[#2D2D2D] text-white px-1.5 py-0.5 rounded text-xs font-mono 
-                       focus:outline-none focus:ring-1 focus:ring-[#569CD6] w-20
+                       focus:outline-none focus:ring-1 focus:ring-[#569CD6] min-w-[4.5rem] w-full max-w-[7rem]
                        ${i === 0 ? 'opacity-50' : ''}`}
               maxLength={displayMode === 'hex' ? 8 : 11}
               placeholder={displayMode === 'hex' ? '00000000' : '0'}

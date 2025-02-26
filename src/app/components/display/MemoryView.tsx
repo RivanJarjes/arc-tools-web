@@ -151,6 +151,12 @@ export function MemoryView({ memory, currentLocation, onMemoryChange, displayMod
                     value={editingLocations[index] ?? formatLocation(loc)}
                     onChange={(e) => handleLocationChange(index, e.target.value)}
                     onBlur={() => handleLocationBlur(index)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.currentTarget.blur();
+                      }
+                    }}
                     className="w-20 bg-transparent text-white text-center font-mono text-xs
                              focus:outline-none focus:ring-1 focus:ring-[#569CD6]"
                     maxLength={displayMode === 'hex' ? 8 : 11}

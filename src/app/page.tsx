@@ -28,6 +28,8 @@ interface ShowSaveFilePickerOptions {
   }>;
 }
 
+const CONTAINER_HEIGHT = 600; // Total height of editor + terminal
+
 export default function Home() {
   const [simulator] = useState(() => new Simulator());
   const cpu = simulator.getCPU();
@@ -61,9 +63,6 @@ export default function Home() {
   const [breakpointVersion, setBreakpointVersion] = useState(0);
   const [memoryVersion, setMemoryVersion] = useState(0);
   const [baseLocation, setBaseLocation] = useState(0);
-
-  const CONTAINER_HEIGHT = 600; // Total height of editor + terminal
-  const editorHeight = CONTAINER_HEIGHT - terminalHeight - 4; // 4px for the resize handle
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -212,10 +211,6 @@ export default function Home() {
   const handleTabChange = (tab: 'assembly' | 'binary') => {
     if (tab === 'binary' && !binaryCode) return;
     setActiveTab(tab);
-    // Reset success message when switching back to assembly
-    if (tab === 'assembly') {
-      setAssemblyError(null);
-    }
   };
 
   // Add file operation handlers
@@ -494,14 +489,28 @@ export default function Home() {
                 }
               }}
               onStep={() => {
-                try {
                   // Execute one instruction
-                  cpu.executeInstruction();
+                  let error = false;
+                  try {
+                    cpu.executeInstruction();
+                  } catch (e) {
+                    console.error('Error executing instruction:', e);
+                    // Set error message in red by using the assemblyError state
+                    setAssemblyError(e instanceof Error ? e.message : 'Unknown error');
+                    setTerminalHistory(e instanceof Error ? e.message : 'Unknown error');
+                    error = true;
+                  }
                   
                   // Update UI state
                   refreshRegisters();
                   refreshProgramCounter();
                   refreshMemory();
+
+                  // Check if the current PC is outside of the displayed memory range (8 words = 32 bytes) and update baseLocation if needed
+                  const pc = cpu.getPC();
+                  if (pc < baseLocation || pc >= baseLocation + 32) {
+                    setBaseLocation(pc & ~0x1F);
+                  }
                   
                   // Update condition code flags from CPU
                   const ccr = cpu.getCCR();
@@ -512,12 +521,11 @@ export default function Home() {
                     carry: ccr.c
                   });
                   
-                  // Update terminal history
-                  setTerminalHistory('Executed instruction successfully');
-                } catch (error) {
-                  console.error('Error executing instruction:', error);
-                  setTerminalHistory('Error executing instruction: ' + (error instanceof Error ? error.message : 'Unknown error'));
-                }
+                  // Update terminal history with success message
+                  if (!error) {
+                    setAssemblyError(null);
+                    setTerminalHistory('Executed instruction successfully');
+                  }
               }}
               onRun={() => {/* TODO: Add run handler */}}
               onStop={() => {/* TODO: Add stop handler */}}
@@ -620,42 +628,16 @@ export default function Home() {
               </div>
 
               {/* Editor content */}
-              <div key={activeTab} style={{ height: `${CONTAINER_HEIGHT}px` }}>
-                {activeTab === 'assembly' ? (
-                  <>
-                    <div style={{ height: `${editorHeight}px` }}>
-                      <Editor 
-                        value={code} 
-                        onChange={setCode} 
-                        language="arc"
-                        height="100%"
-                      />
-                    </div>
-                    <div
-                      className="h-1 bg-[#2D2D2D] cursor-ns-resize hover:bg-[#569CD6] transition-colors"
-                      onMouseDown={handleMouseDown}
-                    ></div>
-                    <div 
-                      className="bg-[#1E1E1E] p-3 overflow-auto transition-all duration-200"
-                      style={{ height: `${terminalHeight}px` }}
-                    >
-                      <div className="font-mono text-sm">
-                        <span className={
-                          assemblyError 
-                            ? "text-[#FF5F56]" 
-                            : "text-green-400"
-                        }>
-                          {terminalHistory}
-                        </span>
-                        {assemblerLogs.map((log, index) => (
-                          <div key={index} className="text-gray-400 mt-1">
-                            {log}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                ) : (
+              <div style={{ height: `${CONTAINER_HEIGHT - terminalHeight - 4}px` }}>
+                <div style={{ display: activeTab === 'assembly' ? 'block' : 'none', height: '100%' }}>
+                  <Editor 
+                    value={code}
+                    onChange={setCode}
+                    language="arc"
+                    height="100%"
+                  />
+                </div>
+                <div style={{ display: activeTab === 'binary' ? 'block' : 'none', height: '100%' }}>
                   <Editor 
                     value={binaryCode}
                     onChange={() => {}}
@@ -665,7 +647,30 @@ export default function Home() {
                     renderWhitespace="all"
                     lineNumbers="on"
                   />
-                )}
+                </div>
+              </div>
+              <div
+                className="h-1 bg-[#2D2D2D] cursor-ns-resize hover:bg-[#569CD6] transition-colors"
+                onMouseDown={handleMouseDown}
+              ></div>
+              <div 
+                className="bg-[#1E1E1E] p-3 overflow-auto transition-all duration-200"
+                style={{ height: `${terminalHeight}px` }}
+              >
+                <div className="font-mono text-sm">
+                  <span className={
+                    assemblyError 
+                      ? "text-[#FF5F56]" 
+                      : "text-green-400"
+                  }>
+                    {terminalHistory}
+                  </span>
+                  {assemblerLogs.map((log, index) => (
+                    <div key={index} className="text-gray-400 mt-1">
+                      {log}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
             
@@ -680,14 +685,17 @@ export default function Home() {
               <button
                 onClick={() => {
                   try {
+                    // Clear registers before simulation
+                    handleClearRegisters();
+                    // Clear CPU memory before writing binary code
+                    cpu.clearMemory();
                     cpu.loadBinaryCode(binaryCode);
                     refreshProgramCounter();
                     refreshMemory();
-                    // Update memory view base location to match new PC
+                    // Update memory view base location to match new PC exactly
+                    // No need to round down since we want PC at the top
                     const newPC = cpu.getPC();
-                    // Round down to nearest multiple of 32 (8 words) to show context
-                    const baseLocation = newPC & ~0x1F;
-                    setBaseLocation(baseLocation);
+                    setBaseLocation(newPC);
                     setTerminalHistory('Binary code loaded into simulation successfully');
                   } catch (error) {
                     console.error('Error loading binary code:', error);
