@@ -1,11 +1,11 @@
 "use client";
 
-import Editor from './components/Editor/Editor';
+import Editor from './components/editor/Editor';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { assemble } from './simulator/assembler';
-import { RegistersView } from './components/Display/RegistersView';
-import { CPUInfo } from './components/Display/CPUInfo';
-import { MemoryView } from './components/Display/MemoryView';
+import { RegistersView } from './components/display/RegistersView';
+import { CPUInfo } from './components/display/CPUInfo';
+import { MemoryView } from './components/display/MemoryView';
 import { Simulator } from './simulator/simulator';
 import { twosComplementHexToNumber, numberToTwosComplementHex } from './utils/helpers';
 
@@ -26,6 +26,13 @@ interface ShowSaveFilePickerOptions {
     description: string;
     accept: Record<string, string[]>;
   }>;
+}
+
+interface CCRUpdate {
+  n: boolean | undefined;
+  z: boolean | undefined;
+  v: boolean | undefined;
+  c: boolean | undefined;
 }
 
 const CONTAINER_HEIGHT = 600; // Total height of editor + terminal
@@ -60,7 +67,6 @@ export default function Home() {
     carry: false
   });
   const [displayMode, setDisplayMode] = useState<'hex' | 'dec'>('hex');
-  const [breakpointVersion, setBreakpointVersion] = useState(0);
   const [memoryVersion, setMemoryVersion] = useState(0);
   const [baseLocation, setBaseLocation] = useState(0);
 
@@ -337,7 +343,7 @@ export default function Home() {
     }
     
     // Create update object
-    const update: any = {
+    const update: CCRUpdate = {
       n: undefined,
       z: undefined,
       v: undefined,
@@ -352,29 +358,29 @@ export default function Home() {
   };
 
   // Function to refresh register display from CPU
-  const refreshRegisters = () => {
+  const refreshRegisters = useCallback(() => {
     const newRegisters = Array(32).fill('').map((_, i) => {
       const value = cpu.getRegister(i);
       return numberToTwosComplementHex(value, 32);
     });
     setRegisters(newRegisters);
-  };
+  }, [cpu]);
 
   // Function to refresh program counter display from CPU
-  const refreshProgramCounter = () => {
+  const refreshProgramCounter = useCallback(() => {
     const pcValue = cpu.getPC();
     setProgramCounter(numberToTwosComplementHex(pcValue, 32));
-  };
+  }, [cpu]);
 
   // Initialize registers display on mount
   useEffect(() => {
     refreshRegisters();
-  }, []);
+  }, [refreshRegisters]);
 
   // Initialize PC display on mount and include in refresh
   useEffect(() => {
     refreshProgramCounter();
-  }, []);
+  }, [refreshProgramCounter]);
 
   // Add debug keyboard shortcut
   useEffect(() => {
@@ -442,10 +448,10 @@ export default function Home() {
       simulator.addBreakpoint(location);
     }
     // Force re-render by incrementing version
-    setBreakpointVersion(v => v + 1);
+    setMemoryVersion(v => v + 1);
   };
 
-  const getBreakpoints = useCallback(() => simulator.getBreakpoints(), [simulator, breakpointVersion]);
+  const getBreakpoints = useCallback(() => simulator.getBreakpoints(), [simulator]);
 
   return (
     <main className="min-h-screen p-4 bg-[#1A1A1A]">

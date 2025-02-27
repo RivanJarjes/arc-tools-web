@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { DisplayModeSwitchProps } from './types';
+import { DisplayModeSwitchProps } from '../display/types';
 
 export function DisplayModeSwitch({ mode, onChange }: DisplayModeSwitchProps) {
   return (

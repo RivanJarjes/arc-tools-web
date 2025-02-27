@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "export": "next build",
     "assembler": "ts-node --project tsconfig.node.json src/app/simulator/assembler.ts",
     "ts-node": "ts-node",
     "test:assembler": "ts-node -r tsconfig-paths/register --project tsconfig.node.json src/app/simulator/test.ts"
@@ -16,6 +17,7 @@
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@fortawesome/react-fontawesome": "^0.2.2",
     "@monaco-editor/react": "^4.7.0",
+    "font-awesome": "^4.7.0",
     "monaco-editor": "^0.52.2",
     "next": "15.1.7",
     "react": "^19.0.0",

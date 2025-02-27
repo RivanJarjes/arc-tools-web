@@ -42,7 +42,7 @@ import { twosComplementBinaryToNumber, numberToTwosComplementBinary, twosComplem
     O - op3_code
     R - Source Register 1
     S - 13-bit sign extended immediate value
-*/
+*/ 
 
 /*
     MEMORY BINARY CODE STRUCTURE:
@@ -1111,7 +1111,7 @@ export const instructionSet = {
                             operand_2 = parseInt(operands[2].substring(1, operands[2].length - 1));
                     }
                     const memory_address = operand_1 + operand_2;
-                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    if (memory_address < -(2**(32 - 1)) || memory_address > (2**(32 - 1) - 1)) throw new Error("Invalid memory address");
                     // If not word-aligned
                     if (memory_address % 4 != 0){ 
                         const standard_address = twosComplementHexToNumber(
@@ -1154,7 +1154,7 @@ export const instructionSet = {
                             operand_2 = parseInt(operands[2].substring(1, operands[2].length - 1));
                     }
                     const memory_address = operand_1 + operand_2;
-                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    if (memory_address < -(2**(32 - 1)) || memory_address > (2**(32 - 1) - 1)) throw new Error("Invalid memory address");
                     // No word-alignment required
                     const result_bin = hexToBinary(cpu.safeReadMemory(memory_address, 1));
                     const sign_bit = result_bin[0];
@@ -1192,7 +1192,7 @@ export const instructionSet = {
                             operand_2 = parseInt(operands[2].substring(1, operands[2].length - 1));
                     }
                     const memory_address = operand_1 + operand_2;
-                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    if (memory_address < -(2**(32 - 1)) || memory_address > (2**(32 - 1) - 1)) throw new Error("Invalid memory address");
                     // If not word-aligned
                     if (memory_address % 2 != 0){ 
                         const standard_address = twosComplementHexToNumber(
@@ -1237,7 +1237,7 @@ export const instructionSet = {
                             operand_2 = parseInt(operands[2].substring(1, operands[2].length - 1));
                     }
                     const memory_address = operand_1 + operand_2;
-                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    if (memory_address < -(2**(32 - 1)) || memory_address > (2**(32 - 1) - 1)) throw new Error("Invalid memory address");
                     // No word-alignment required
                     const result = cpu.safeReadMemory(memory_address, 1);
                     cpu.setRegister(dest_reg, twosComplementHexToNumber("0".repeat(6) + result, 32));
@@ -1273,7 +1273,7 @@ export const instructionSet = {
                             operand_2 = parseInt(operands[2].substring(1, operands[2].length - 1));
                     }
                     const memory_address = operand_1 + operand_2;
-                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    if (memory_address < -(2**(32 - 1)) || memory_address > (2**(32 - 1) - 1)) throw new Error("Invalid memory address");
                     // If not word-aligned
                     if (memory_address % 2 != 0){ 
                         const standard_address = twosComplementHexToNumber(
@@ -1314,7 +1314,7 @@ export const instructionSet = {
                             memory_parameter_2 = parseInt(operands[3].substring(1, operands[3].length - 1));
                     }
                     const memory_address = memory_parameter_1 + memory_parameter_2;
-                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    if (memory_address < -(2**(32 - 1)) || memory_address > (2**(32 - 1) - 1)) throw new Error("Invalid memory address");
                     // If not word-aligned
                     if (memory_address % 4 != 0){ 
                         const standard_address = twosComplementHexToNumber(
@@ -1357,7 +1357,7 @@ export const instructionSet = {
                             memory_parameter_2 = parseInt(operands[3].substring(1, operands[3].length - 1));
                     }
                     const memory_address = memory_parameter_1 + memory_parameter_2;
-                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    if (memory_address < -(2**(32 - 1)) || memory_address > (2**(32 - 1) - 1)) throw new Error("Invalid memory address");
                     // Do not need to check word-alignment
                     cpu.writeMemory(memory_address, source_reg, 1);
                 } catch (e) {
@@ -1393,7 +1393,7 @@ export const instructionSet = {
                             memory_parameter_2 = parseInt(operands[3].substring(1, operands[3].length - 1));
                     }
                     const memory_address = memory_parameter_1 + memory_parameter_2;
-                    if (memory_address < -0xFFFFFFFF || memory_address > 0xFFFFFFFF) throw new Error("Invalid memory address");
+                    if (memory_address < -(2**(32 - 1)) || memory_address > (2**(32 - 1) - 1)) throw new Error("Invalid memory address");
                     // If not word-aligned
                     if (memory_address % 2 != 0){ 
                         const standard_address = twosComplementHexToNumber(

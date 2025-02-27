@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { MemoryViewProps } from './types';
+import { MemoryViewProps } from '../display/types';
 import { twosComplementHexToNumber, numberToTwosComplementHex } from '../../utils/helpers';
 import { CPU } from '../../simulator/cpu';
 

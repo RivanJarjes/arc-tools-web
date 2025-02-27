@@ -1,5 +1,7 @@
 import { twosComplementHexToNumber, hexToBinary, 
-    unsignedBinaryToNumber, twosComplementBinaryToNumber } from "../utils/helpers";
+    unsignedBinaryToNumber, twosComplementBinaryToNumber, 
+    numberToTwosComplementHex,
+    unsignedHexToNumber} from "../utils/helpers";
 
 import { instructionSet } from "./instructions";
 
@@ -174,21 +176,24 @@ export class CPU {
     }
     
     public writeMemory(address: number, value: string, size: 1 | 2 | 4 = 4): void {
-        if (address < 0 || address >= this.TOTAL_MEMORY) {
+        // Convert to addressable address if negative
+        const new_address = unsignedHexToNumber(numberToTwosComplementHex(address, 32));
+        
+        if (new_address < 0 || new_address >= this.TOTAL_MEMORY) {
             throw new Error(`Memory access out of bounds: ${address}`);
         }
 
-        if (address % size !== 0) {
+        if (new_address % size !== 0) {
             throw new Error(`Memory access must be aligned to ${size} bytes: ${address}`);
         }
         
-        const last_word = Math.floor(address / 4) * 4;
+        const last_word = Math.floor(new_address / 4) * 4;
         const pageNumber = this.getPageNumber(last_word);
         const offset = this.getPageOffset(last_word);
         
         // Check if access crosses page boundary
         if (offset + size > this.PAGE_SIZE) {
-            throw new Error(`Memory access crosses page boundary at address: ${address}`);
+            throw new Error(`Memory access crosses page boundary at address: ${new_address}`);
         }
         
         const page = this.getOrCreatePage(pageNumber);
