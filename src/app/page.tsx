@@ -1,6 +1,6 @@
 "use client";
 
-import Editor from './components/Editor/Editor';
+import dynamic from 'next/dynamic';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { assemble } from './simulator/assembler';
 import { RegistersView } from './components/display/RegistersView';
@@ -8,6 +8,12 @@ import { CPUInfo } from './components/display/CPUInfo';
 import { MemoryView } from './components/display/MemoryView';
 import { Simulator } from './simulator/simulator';
 import { twosComplementHexToNumber, numberToTwosComplementHex } from './utils/helpers';
+import { isClient, getWindow } from './utils/client';
+
+// Dynamically import the Editor component with SSR disabled
+const Editor = dynamic(() => import('./components/Editor/Editor'), { 
+  ssr: false 
+});
 
 // Add proper types for the File System Access API
 interface FileSystemFileHandle {
@@ -77,6 +83,9 @@ export default function Home() {
   };
 
   useEffect(() => {
+    // Only run in browser environment
+    if (!isClient) return;
+    
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
       
@@ -104,6 +113,9 @@ export default function Home() {
 
   // Add click outside handler
   useEffect(() => {
+    // Only run in browser environment
+    if (!isClient) return;
+    
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsFileMenuOpen(false);
@@ -118,6 +130,9 @@ export default function Home() {
 
   // Add new useEffect for container resizing
   useEffect(() => {
+    // Only run in browser environment
+    if (!isClient) return;
+    
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizingContainers) return;
       
@@ -145,6 +160,9 @@ export default function Home() {
 
   // Add this useEffect after the other useEffects
   useEffect(() => {
+    // Only run in browser environment
+    if (!isClient) return;
+    
     // Add a class to the body when resizing to prevent text selection
     if (isResizingContainers) {
       document.body.classList.add('resize-x');
@@ -231,6 +249,9 @@ export default function Home() {
   };
 
   const handleOpenFile = () => {
+    // Check if we're in the browser environment
+    if (!isClient) return;
+    
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.asm';
@@ -249,7 +270,7 @@ export default function Home() {
 
   const handleSaveAs = () => {
     // Check if we're in the browser environment
-    if (typeof window === 'undefined') return;
+    if (!isClient) return;
 
     const blob = new Blob([code], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -258,9 +279,10 @@ export default function Home() {
     a.download = 'program.asm';
 
     // Type guard for showSaveFilePicker
-    if ('showSaveFilePicker' in window) {
+    const win = getWindow();
+    if (win && 'showSaveFilePicker' in win) {
       // Modern browsers with File System Access API
-      (window.showSaveFilePicker as (options: ShowSaveFilePickerOptions) => Promise<FileSystemFileHandle>)({
+      (win.showSaveFilePicker as (options: ShowSaveFilePickerOptions) => Promise<FileSystemFileHandle>)({
         suggestedName: 'program.asm',
         types: [{
           description: 'Assembly File',
@@ -384,6 +406,9 @@ export default function Home() {
 
   // Add debug keyboard shortcut
   useEffect(() => {
+    // Only add event listeners in browser environment
+    if (!isClient) return;
+    
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'D') {
         // Get visible memory locations
@@ -414,8 +439,11 @@ export default function Home() {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    const win = getWindow();
+    if (win) {
+      win.addEventListener('keydown', handleKeyDown);
+      return () => win.removeEventListener('keydown', handleKeyDown);
+    }
   }, [cpu, registers]); // Include dependencies
 
   const handleClearRegisters = () => {
