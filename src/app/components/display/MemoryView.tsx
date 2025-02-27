@@ -40,7 +40,12 @@ export function MemoryView({ memory, currentLocation, onMemoryChange, displayMod
   };
 
   // Check if a location matches the current PC
-  const isCurrentLocation = (loc: number) => loc === currentLocation;
+  const isCurrentLocation = (loc: number) => {
+    // Convert both values to unsigned 32-bit representation for comparison
+    const locUnsigned = loc >>> 0;
+    const currentLocationUnsigned = currentLocation >>> 0;
+    return locUnsigned === currentLocationUnsigned;
+  };
 
   // Handle memory value input change
   const handleInputChange = (location: number, value: string) => {

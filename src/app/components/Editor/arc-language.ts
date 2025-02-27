@@ -52,7 +52,7 @@ export const monarchLanguage: languages.IMonarchLanguage = {
             }],
             
             // Registers
-            [/%[r][0-9]|%sp|%fp/, 'register'],
+            [/(%r(?:[0-9]|[1-2][0-9]|3[0-1])|%sp|%fp)\b/, 'register'],
             
             // Numbers
             [/\b[0-9]+\b/, 'number'],
@@ -93,11 +93,18 @@ export const completionItemProvider: languages.CompletionItemProvider = {
     // Get the line content up to the cursor position
     const lineContent = model.getLineContent(position.lineNumber);
     const textBeforeCursor = lineContent.substring(0, position.column - 1);
+    const currentWord = word.word;
 
-    // If the last character is a period, only show pseudo ops
+    // Check if we're typing a pseudo op (starts with a dot)
     if (textBeforeCursor.trim().endsWith('.')) {
+      // We're in a pseudo op context (after a dot)
+      // Only show matching pseudo ops without the dot prefix
+      const matchingPseudoOps = pseudo.filter(op => 
+        currentWord === '' || op.toLowerCase().startsWith(currentWord.toLowerCase())
+      );
+      
       return {
-        suggestions: pseudo.map(op => ({
+        suggestions: matchingPseudoOps.map(op => ({
           label: op,
           kind: languages.CompletionItemKind.Keyword,
           insertText: op,
@@ -107,35 +114,54 @@ export const completionItemProvider: languages.CompletionItemProvider = {
       };
     }
 
-    // Otherwise show all suggestions
-    const suggestions = [
-      // Instructions
-      ...instructions.map(instruction => ({
+    // For normal context (not after a dot), show everything except pseudo ops
+    const suggestions: languages.CompletionItem[] = [];
+    
+    // Add instructions
+    for (const instruction of instructions) {
+      suggestions.push({
         label: instruction,
         kind: languages.CompletionItemKind.Keyword,
         insertText: instruction,
         detail: 'ARC Instruction',
         range: range
-      })),
+      });
+    }
 
-      // Synthetic Instructions
-      ...synthetic.map(instruction => ({
+    // Add synthetic instructions
+    for (const instruction of synthetic) {
+      suggestions.push({
         label: instruction,
         kind: languages.CompletionItemKind.Keyword,
         insertText: instruction,
         detail: 'Synthetic Instruction',
         range: range
-      })),
+      });
+    }
 
-      // Common Registers
-      ...Array.from({ length: 32 }, (_, i) => ({
-        label: `%r${i}`,
+    // Add pseudo ops with dot prefix
+    for (const op of pseudo) {
+      const labelWithDot = `.${op}`;
+      suggestions.push({
+        label: labelWithDot,
+        kind: languages.CompletionItemKind.Keyword,
+        insertText: labelWithDot,
+        detail: 'Pseudo Op',
+        range: range
+      });
+    }
+
+    // Add registers
+    for (let i = 0; i < 32; i++) {
+      const register = `%r${i}`;
+      suggestions.push({
+        label: register,
         kind: languages.CompletionItemKind.Variable,
-        insertText: `%r${i}`,
+        insertText: register,
         detail: `Register ${i}`,
         range: range
-      }))
-    ];
+      });
+    }
 
     return { suggestions };
   }
@@ -177,7 +203,7 @@ export function updateLabels(text: string, editor: MonacoEditor.IStandaloneCodeE
                 }],
                 
                 // Registers
-                [/%[r][0-9]|%sp|%fp/, 'register'],
+                [/(%r(?:[0-9]|[1-2][0-9]|3[0-1])|%sp|%fp)\b/, 'register'],
                 
                 // Numbers
                 [/\b[0-9]+\b/, 'number'],

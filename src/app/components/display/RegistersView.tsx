@@ -15,7 +15,8 @@ export function RegistersView({
   onReset,
   onStep,
   onRun,
-  onStop
+  onStop,
+  isRunning
 }: RegistersViewProps) {
   const [displayMode, setDisplayMode] = useState<'hex' | 'dec'>('hex');
   const [editingValues, setEditingValues] = useState<{ [key: number]: string }>({});
@@ -108,6 +109,7 @@ export function RegistersView({
           onStep={onStep}
           onRun={onRun}
           onStop={onStop}
+          isRunning={isRunning}
         />
         <div className="h-6 w-px bg-[#4D4D4D]" />
         <div className="flex gap-2">

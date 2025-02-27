@@ -6,6 +6,7 @@ export interface SimulatorControlsProps {
   onStep?: () => void;
   onRun?: () => void;
   onStop?: () => void;
+  isRunning?: boolean;
 }
 
 export interface DisplayModeSwitchProps {
@@ -35,6 +36,7 @@ export interface RegistersViewProps {
   onStep?: () => void;
   onRun?: () => void;
   onStop?: () => void;
+  isRunning?: boolean;
 }
 
 export interface CPUInfoProps {

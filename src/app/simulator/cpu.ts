@@ -28,8 +28,26 @@ export class CPU {
     // Main memory (using sparse pages)
     private readonly PAGE_SIZE = 4096; // 4KB pages
     private readonly TOTAL_MEMORY = Math.pow(2, 32); // 4GB address space
-    private memoryPages: Map<number, Map<number, string>>;
+    private memory_pages: Map<number, Map<number, string>>;
     
+    // Trap handler
+    private trap_base_register: number = -16777216;
+    private enable_traps: boolean = false;
+
+    // Console handling
+    private consoleWriteListeners: Array<(char: string) => void> = [];
+    private readonly CONSOLE_DATA_ADDRESS = 0xffff0000;
+    private readonly CONSOLE_STATUS_ADDRESS = 0xffff0004;
+    private readonly CONSOLE_READY_STATUS = "80000000";
+    private readonly CONSOLE_BUSY_STATUS = "00000000";
+    private consoleStatusCounter: number = 0;
+
+    // Keyboard handling
+    private readonly KEYBOARD_DATA_ADDRESS = 0xffff0008;
+    private readonly KEYBOARD_STATUS_ADDRESS = 0xffff000C;
+    private readonly KEYBOARD_DATA_READY = "80000000";
+    private readonly KEYBOARD_DATA_NOT_READY = "00000000";
+
     constructor() {
         // Initialize registers
         this.registers = new Int32Array(32);
@@ -46,10 +64,13 @@ export class CPU {
         };
         
         // Initialize sparse memory
-        this.memoryPages = new Map();
+        this.memory_pages = new Map();
         
         // Initialize special registers
         this.initializeSpecialRegisters();
+
+        // Add Terminal Status Memory
+        this.writeMemory(this.CONSOLE_STATUS_ADDRESS, this.CONSOLE_READY_STATUS, 4);
     }
     
     public setNextBranchDisp(disp: number): void {
@@ -58,7 +79,13 @@ export class CPU {
 
     public clearMemory(): void {
         // Reinitialize memory pages to empty
-        this.memoryPages = new Map();
+        this.memory_pages = new Map();
+        // Reset console status to ready
+        this.writeMemory(this.CONSOLE_STATUS_ADDRESS, this.CONSOLE_READY_STATUS, 4);
+        // Reset keyboard status to not ready
+        this.writeMemory(this.KEYBOARD_STATUS_ADDRESS, this.KEYBOARD_DATA_NOT_READY, 4);
+        // Reset console status counter
+        this.consoleStatusCounter = 0;
     }
     
     private initializeSpecialRegisters() {
@@ -67,18 +94,25 @@ export class CPU {
     }
     
     private getPageNumber(address: number): number {
-        return Math.floor(address / this.PAGE_SIZE);
+        // Ensure address is treated as unsigned
+        const unsignedAddress = address >>> 0;
+        return Math.floor(unsignedAddress / this.PAGE_SIZE);
     }
     
     private getPageOffset(address: number): number {
-        return address % this.PAGE_SIZE;
+        // Ensure address is treated as unsigned
+        const unsignedAddress = address >>> 0;
+        return unsignedAddress % this.PAGE_SIZE;
     }
     
     private getOrCreatePage(pageNumber: number): Map<number, string> {
-        let page = this.memoryPages.get(pageNumber);
+        // Ensure page number is treated as unsigned
+        const unsignedPageNumber = pageNumber >>> 0;
+        
+        let page = this.memory_pages.get(unsignedPageNumber);
         if (!page) {
             page = new Map();
-            this.memoryPages.set(pageNumber, page);
+            this.memory_pages.set(unsignedPageNumber, page);
         }
         return page;
     }
@@ -105,6 +139,22 @@ export class CPU {
         
         // Ensure value is treated as a 32-bit integer
         this.registers[index] = value | 0;
+    }
+
+    public getTrapBaseRegister(): number {
+        return this.trap_base_register;
+    }
+
+    public setTrapBaseRegister(value: number): void {
+        this.trap_base_register = value;
+    }
+
+    public getEnableTraps(): boolean {
+        return this.enable_traps;
+    }
+
+    public setEnableTraps(value: boolean): void {
+        this.enable_traps = value;
     }
     
     // Getter for PC
@@ -143,31 +193,47 @@ export class CPU {
     
     // Memory access methods
     public readMemory(address: number, size: 1 | 2 | 4 = 4): string {
-        if (address < 0 || address >= this.TOTAL_MEMORY) {
-            throw new Error(`Memory access out of bounds: ${address}`);
+        // Handle addresses as unsigned 32-bit values
+        const unsignedAddress = address >>> 0;
+
+        if (unsignedAddress >= this.TOTAL_MEMORY) {
+            throw new Error(`Memory access out of bounds: ${address.toString(16)}`);
         }
 
-        if (address % size !== 0) {
-            throw new Error(`Memory access must be aligned to ${size} bytes: ${address}`);
+        if (unsignedAddress % size !== 0) {
+            throw new Error(`Memory access must be aligned to ${size} bytes: ${address.toString(16)}`);
         }
         
-        const last_word = Math.floor(address / 4) * 4;
+        const last_word = Math.floor(unsignedAddress / 4) * 4;
         const pageNumber = this.getPageNumber(last_word);
         const offset = this.getPageOffset(last_word);
         
         // Check if access crosses page boundary
         if (offset + size > this.PAGE_SIZE) {
-            throw new Error(`Memory access crosses page boundary at address: ${address}`);
+            throw new Error(`Memory access crosses page boundary at address: ${address.toString(16)}`);
         }
         
         const page = this.getOrCreatePage(pageNumber);
         const value = page.get(offset) || '00000000';
         
+        // If reading from keyboard data, reset keyboard status to not ready
+        if (unsignedAddress === this.KEYBOARD_DATA_ADDRESS) {
+            try {
+                // Reset keyboard status to not ready
+                const statusPageNumber = this.getPageNumber(this.KEYBOARD_STATUS_ADDRESS);
+                const statusOffset = this.getPageOffset(this.KEYBOARD_STATUS_ADDRESS);
+                const statusPage = this.getOrCreatePage(statusPageNumber);
+                statusPage.set(statusOffset, this.KEYBOARD_DATA_NOT_READY);
+            } catch (error) {
+                console.error("Error resetting keyboard status:", error);
+            }
+        }
+        
         switch(size) {
             case 1:
-                return value.slice((address-last_word)*2, (address-last_word)*2 + 2); // Any 2 chars for 1 byte
+                return value.slice((unsignedAddress-last_word)*2, (unsignedAddress-last_word)*2 + 2); // Any 2 chars for 1 byte
             case 2:
-                return value.slice((address-last_word)*2, (address-last_word)*2 + 4); // Any 4 chars for 2 bytes
+                return value.slice((unsignedAddress-last_word)*2, (unsignedAddress-last_word)*2 + 4); // Any 4 chars for 2 bytes
             case 4:
                 return value; // All 8 chars for 4 bytes
             default:
@@ -178,7 +244,8 @@ export class CPU {
     public writeMemory(address: number, value: string, size: 1 | 2 | 4 = 4): void {
         // Convert to addressable address if negative
         const new_address = unsignedHexToNumber(numberToTwosComplementHex(address, 32));
-        
+        console.log(new_address);
+
         if (new_address < 0 || new_address >= this.TOTAL_MEMORY) {
             throw new Error(`Memory access out of bounds: ${address}`);
         }
@@ -202,11 +269,18 @@ export class CPU {
         // For smaller sizes, we need to preserve the other bytes
         if (size < 4) {
             const existingValue = page.get(offset) || '00000000';
-            const word_diff = (address - last_word)*2;
+            const word_diff = (new_address - last_word)*2;
+
+            console.log("address: ", new_address)
+            console.log("last_word: ", last_word)
+            console.log("word_diff: ", word_diff)
             if (size === 1) {
                 // Replace last 2 chars
                 console.log(word_diff);
                 paddedValue = (word_diff != 0 ? existingValue.slice(0, word_diff) : "") + value + (word_diff != 6 ? existingValue.slice(word_diff + 2) : "");
+                console.log("existingValue: ", existingValue)
+                console.log("value: ", value)
+                console.log("paddedValue: ", paddedValue)
             } else if (size === 2) {
                 // Replace last 4 chars
                 paddedValue = (word_diff != 0 ? existingValue.slice(0, word_diff) : "") + value + (word_diff != 4 ? existingValue.slice(word_diff + 4) : "");
@@ -214,6 +288,33 @@ export class CPU {
         }
 
         page.set(offset, paddedValue);
+
+        // Check if writing to console data address and console is ready
+        if (new_address === this.CONSOLE_DATA_ADDRESS) {
+            // Read console status
+            try {
+                const status = this.readMemory(this.CONSOLE_STATUS_ADDRESS, 4);
+                if (status === this.CONSOLE_READY_STATUS) {
+                    // Extract the first byte (2 hex characters) of the data and convert to ASCII
+                    const charCode = parseInt(paddedValue.substring(0, 2), 16);
+                    const char = String.fromCharCode(charCode);
+                    
+                    // Notify listeners
+                    this.notifyConsoleWrite(char);
+                    
+                    // Set console status to busy for 8 instruction executions
+                    this.consoleStatusCounter = 8;
+                    
+                    // Update console status register to busy
+                    const statusPageNumber = this.getPageNumber(this.CONSOLE_STATUS_ADDRESS);
+                    const statusOffset = this.getPageOffset(this.CONSOLE_STATUS_ADDRESS);
+                    const statusPage = this.getOrCreatePage(statusPageNumber);
+                    statusPage.set(statusOffset, this.CONSOLE_BUSY_STATUS);
+                }
+            } catch (error) {
+                console.error("Error checking console status:", error);
+            }
+        }
     }
 
     public loadBinaryCode(binaryCode: string = ""): void {
@@ -242,13 +343,29 @@ export class CPU {
         for (const line of editedBinaryCode) {
             if (line.length !== 2) throw new Error(`Invalid line format: ${line}`);
             const [address, instruction] = line;
+            
             try {
-                const addressNum = twosComplementHexToNumber(address, 32);
+                // Convert hex address to unsigned 32-bit integer directly
+                // This prevents the twosComplementHexToNumber function from interpreting
+                // high addresses (like 0xff000a00) as negative numbers
+                let addressHex = address;
+                if (addressHex.startsWith('0x')) {
+                    addressHex = addressHex.substring(2);
+                }
+                
+                // Parse the hex address as an unsigned integer
+                const addressNum = parseInt(addressHex, 16);
+                
+                // Write to memory using the unsigned address
                 this.writeMemory(addressNum, instruction, 4);
             } catch (e) {
                 throw new Error(`Error writing memory at address ${address}: ${e}`);
             }
         }
+        
+        // Make sure console status is ready
+        this.writeMemory(this.CONSOLE_STATUS_ADDRESS, this.CONSOLE_READY_STATUS, 4);
+        this.consoleStatusCounter = 0;
     }
 
     public interpretInstruction(machWord: string): string[]{
@@ -322,6 +439,8 @@ export class CPU {
                         return [instruction_type, "%r" + source_reg_1, "%r" + sources_reg2, "%psr"];
                     else if (instruction_type == "rd")
                         return [instruction_type, "%psr", "%r" + sources_reg2, "%r" + dest_reg];
+                    else if (instruction_type == "ta" || instruction_type == "rett")
+                        return [instruction_type, "%r" + source_reg_1, "%r" + sources_reg2];
 
                     return [instruction_type, "%r" + source_reg_1, "%r" + sources_reg2, "%r" + dest_reg];
                 } else {
@@ -332,7 +451,10 @@ export class CPU {
                             imm = imm % 32;
                         else if (imm < 0)
                             imm = 32 - (Math.abs(imm) % 32);
-                    }
+                    } 
+                    if (instruction_type == "ta" || instruction_type == "rett")
+                        return [instruction_type, "%r" + source_reg_1, imm.toString()];
+                    
                     return [instruction_type, "%r" + source_reg_1, imm.toString(), "%r" + dest_reg];
                 }
             }
@@ -383,6 +505,24 @@ export class CPU {
         const instruction = this.safeReadMemory(this.pc);
         const decoded_instruction = this.interpretInstruction(instruction);
 
+        // Check if we need to update console status
+        if (this.consoleStatusCounter > 0) {
+            this.consoleStatusCounter--;
+            
+            // If counter reaches zero, set console status back to ready
+            if (this.consoleStatusCounter === 0) {
+                try {
+                    // Update console status without triggering side effects
+                    const pageNumber = this.getPageNumber(this.CONSOLE_STATUS_ADDRESS);
+                    const offset = this.getPageOffset(this.CONSOLE_STATUS_ADDRESS);
+                    const page = this.getOrCreatePage(pageNumber);
+                    page.set(offset, this.CONSOLE_READY_STATUS);
+                } catch (error) {
+                    console.error("Error updating console status:", error);
+                }
+            }
+        }
+
         if (instruction === "0".repeat(8))  {
             this.pc += 4;
             return;
@@ -396,6 +536,8 @@ export class CPU {
             }
         } catch (e) {
             console.error(`_${e instanceof Error ? e.message : 'Unknown error'}`);
+            this.pc += 4;
+            this.next_branch_disp = 0;
             throw e;
         }
 
@@ -403,9 +545,9 @@ export class CPU {
         if (this.next_branch_disp != 0) {
             this.pc += this.next_branch_disp;
             this.next_branch_disp = 0;
-        }else 
+        } else { 
             this.pc += 4;
-        
+        }
     }
 
     public safeReadMemory(address: number, size: 1 | 2 | 4 = 4): string {
@@ -414,6 +556,81 @@ export class CPU {
         } catch {
             // Return zeros if memory doesn't exist or there's an error
             return size === 4 ? '00000000' : (size === 2 ? '0000' : '00');
+        }
+    }
+
+    // Debug method to check if a memory address is properly allocated
+    public checkMemoryExistence(addressHex: string): boolean {
+        let address: number;
+        
+        // Handle addresses with or without 0x prefix
+        if (addressHex.startsWith('0x')) {
+            address = parseInt(addressHex.substring(2), 16);
+        } else {
+            address = parseInt(addressHex, 16);
+        }
+        
+        // Convert to unsigned 32-bit integer 
+        const unsignedAddress = address >>> 0;
+        
+        // Calculate page information
+        const last_word = Math.floor(unsignedAddress / 4) * 4;
+        const pageNumber = this.getPageNumber(last_word);
+        const offset = this.getPageOffset(last_word);
+        
+        // Check if the page exists
+        const page = this.memory_pages.get(pageNumber);
+        if (!page) {
+            return false;
+        }
+        
+        // Check if the specific memory location exists in the page
+        return page.has(offset);
+    }
+
+    // Method to add console write listener
+    public addConsoleWriteListener(listener: (char: string) => void): void {
+        this.consoleWriteListeners.push(listener);
+    }
+
+    // Method to remove console write listener
+    public removeConsoleWriteListener(listener: (char: string) => void): void {
+        this.consoleWriteListeners = this.consoleWriteListeners.filter(l => l !== listener);
+    }
+
+    // Method to notify listeners when console data is written
+    private notifyConsoleWrite(char: string): void {
+        this.consoleWriteListeners.forEach(listener => listener(char));
+    }
+
+    // Public getter for console status counter
+    public getConsoleStatusCounter(): number {
+        return this.consoleStatusCounter;
+    }
+
+    // Method to handle keyboard input
+    public handleKeyboardInput(char: string): void {
+        try {
+            // Check if keyboard status indicates it's ready for input
+            const status = this.safeReadMemory(this.KEYBOARD_STATUS_ADDRESS, 4);
+            if (status === this.KEYBOARD_DATA_NOT_READY) {
+                // Get ASCII code of the character
+                const charCode = char.charCodeAt(0);
+                
+                // Convert to hex string and pad to 2 characters
+                const hexValue = charCode.toString(16).padStart(2, '0') + '000000';
+                
+                // Write the character to keyboard data address
+                this.writeMemory(this.KEYBOARD_DATA_ADDRESS, hexValue, 4);
+                
+                // Set keyboard status to data ready
+                const statusPageNumber = this.getPageNumber(this.KEYBOARD_STATUS_ADDRESS);
+                const statusOffset = this.getPageOffset(this.KEYBOARD_STATUS_ADDRESS);
+                const statusPage = this.getOrCreatePage(statusPageNumber);
+                statusPage.set(statusOffset, this.KEYBOARD_DATA_READY);
+            }
+        } catch (error) {
+            console.error("Error handling keyboard input:", error);
         }
     }
 }

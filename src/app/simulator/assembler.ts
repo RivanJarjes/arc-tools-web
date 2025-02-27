@@ -220,8 +220,10 @@ function second_pass(instructions: string[], symbolTable: MemoryMap): string[][]
         if (machineCode.length == 0) {
 			if (isNaN(starting_address))
 				machineCode.push([numberToTwosComplementBinary(pc, 32)]);
-			else
+			else {
 				machineCode.push([numberToTwosComplementBinary(starting_address, 32)]);
+				starting_address = NaN;
+			}
         }
 
 		// Handle actual instructions
@@ -335,22 +337,43 @@ function encode_instruction(
                 const rs1 = numberToUnsignedBinary(parseInt(jmplResult.register!.slice(2)), 5);
                 const simm13 = numberToTwosComplementBinary(jmplResult.immediate!, 13);
                 return "10" + rd + instruction.op3_code + rs1 + "1" + simm13;
-            }else if (baseInstruction == "ta") {
-                if (tokens.length != 2) error("Invalid operands: " + tokens.join(" "));
+            }else if (baseInstruction == "ta" || baseInstruction == "rett") {
+                if (tokens.length != 2 && tokens.length != 3) error("Invalid operands: " + tokens.join(" "));
 
-                const opRegister = isRegister(tokens[1]);
-                const opImmediate = isImmediate(tokens[1], symbolTable);
+				if (tokens.length == 2) {
+					const opRegister = isRegister(tokens[1]);
+					const opImmediate = isImmediate(tokens[1], symbolTable);
 
-                if (opRegister == opImmediate) // If it's neither or... somehow both
-                    error("Invalid operands: " + tokens.join(" "));
+					if (opRegister == opImmediate) // If it's neither or... somehow both
+						error("Invalid operands: " + tokens.join(" "));
 
-                if (opRegister) {
-                    const rs1 = numberToUnsignedBinary(parseInt(tokens[1].slice(2)), 5);
-                    return "10" + "0".repeat(5) + instruction.op3_code + rs1 + "0".repeat(14);
-                } else if (opImmediate) {
-                    const simm13 = numberToTwosComplementBinary(getImmediateValue(tokens[1], symbolTable), 13);
-                    return "10" + "0".repeat(5) + instruction.op3_code + "0".repeat(5) + "1" + simm13;
-                }
+					if (opRegister) {
+						const rs1 = numberToUnsignedBinary(parseInt(tokens[1].slice(2)), 5);
+						return "10" + "0".repeat(5) + instruction.op3_code + rs1 + "0".repeat(14);
+					} else if (opImmediate) {
+						const simm13 = numberToTwosComplementBinary(getImmediateValue(tokens[1], symbolTable), 13);
+                        return "10" + "0".repeat(5) + instruction.op3_code + "0".repeat(5) + "1" + simm13;
+                    }
+				}else if (tokens.length == 3) {
+					const op1Register = isRegister(tokens[1]);
+					const op2Register = isRegister(tokens[2]);
+					const op2Immediate = isImmediate(tokens[2], symbolTable);
+
+					if (!op1Register || (op2Register == op2Immediate))
+						error("Invalid operands: " + tokens.join(" "));
+
+					const rd = "0".repeat(5);
+
+					if (op1Register && op2Register) {
+						const rs1 = numberToUnsignedBinary(parseInt(tokens[1].slice(2)), 5);
+						const rs2 = numberToUnsignedBinary(parseInt(tokens[2].slice(2)), 5);
+						return "10" + rd + instruction.op3_code + rs1 + "0".repeat(9) + rs2;
+					} else if (op1Register && op2Immediate) {
+						const rs1 = numberToUnsignedBinary(parseInt(tokens[1].slice(2)), 5);
+						const simm13 = numberToTwosComplementBinary(getImmediateValue(tokens[2], symbolTable), 13);
+						return "10" + rd + instruction.op3_code + rs1 + "1" + simm13;
+					}
+				}
 
                 error("Invalid operands: " + tokens.join(" "));
             }else if (baseInstruction == "rett") {

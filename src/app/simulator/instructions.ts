@@ -1,5 +1,5 @@
 import { CPU } from "./cpu";
-import { twosComplementBinaryToNumber, numberToTwosComplementBinary, twosComplementHexToNumber, numberToTwosComplementHex, numberToUnsignedHex, hexToBinary, binaryToHex } from "../utils/helpers";
+import { twosComplementBinaryToNumber, numberToTwosComplementBinary, twosComplementHexToNumber, numberToTwosComplementHex, numberToUnsignedHex, hexToBinary, binaryToHex, numberToUnsignedBinary } from "../utils/helpers";
 /*  op_code:
         "00" - SETHI / BRANCH
         "01" - CALL
@@ -366,7 +366,8 @@ export const instructionSet = {
                         operand_2 = cpu.getRegister(source_reg2);
                     } else 
                         operand_2 = parseInt(operands[2]);
-                    const result = operand_1 + operand_2;
+                    const result_bin = numberToTwosComplementBinary(operand_1 + operand_2, 32);
+                    const result = twosComplementBinaryToNumber(result_bin);
                     cpu.setRegister(dest_reg, result);
                     
                     // Overflow: occurs when adding two numbers of the same sign produces a result of the opposite sign
@@ -723,7 +724,6 @@ export const instructionSet = {
                         (cpu.getCCR().z ? "1" : "0") + 
                         (cpu.getCCR().v ? "1" : "0") + 
                         (cpu.getCCR().c ? "1" : "0") + "0".repeat(20);
-                    console.log(cc_bin);
                     const cc = twosComplementBinaryToNumber(cc_bin);
                     cpu.setRegister(dest_reg, cc);
                 } catch (e) {
@@ -737,6 +737,23 @@ export const instructionSet = {
             op3_code: "111001",
             operands: 3,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                try {
+                    if (operands.length != 3) throw new Error("Invalid number of operands for rett");
+                    const source_reg_1 = cpu.getRegister(parseInt(operands[1].slice(2)));
+
+                    let result;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg_2 = cpu.getRegister(parseInt(operands[2].slice(2)));
+                        result = source_reg_1 + source_reg_2;
+                    } else 
+                        result = source_reg_1 + parseInt(operands[2]);
+                    
+                    cpu.setNextBranchDisp(result - cpu.getPC());
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         sll: {
             // Shift bit left logical
@@ -878,7 +895,8 @@ export const instructionSet = {
                         operand_2 = cpu.getRegister(source_reg2);
                     } else 
                         operand_2 = parseInt(operands[2]);
-                    const result = operand_1 - operand_2;
+                    const result_bin = numberToTwosComplementBinary(operand_1 - operand_2, 32);
+                    const result = twosComplementBinaryToNumber(result_bin);
                     cpu.setRegister(dest_reg, result);
                     
                     // Overflow: occurs when subtracting numbers of opposite signs produces a result with unexpected sign
@@ -908,6 +926,41 @@ export const instructionSet = {
             op3_code: "111010",
             operands: 1,
             memory_param: 0,
+            execute: (cpu: CPU, operands: string[]) => {
+                try {
+                    if (operands.length != 3) throw new Error("Invalid number of operands for ta");
+                    const source_reg = cpu.getRegister(parseInt(operands[1].slice(2)));
+                    let trap_number;
+                    if (operands[2].startsWith("%r")) {
+                        const source_reg2 = cpu.getRegister(parseInt(operands[2].slice(2)));
+                        trap_number = source_reg + source_reg2;
+                    } else {
+                        const imm = parseInt(operands[2]);
+                        trap_number = source_reg + imm;
+                    }
+                    if (trap_number > 127) trap_number = trap_number % 128;
+                    else if (trap_number < 0) trap_number = 128 - Math.abs(trap_number);
+                    const trap_base_address_bin = numberToTwosComplementBinary(cpu.getTrapBaseRegister(), 32).substring(0, 20);
+                    const trap_number_bin = numberToUnsignedBinary(trap_number, 7);
+                    const trap_address_bin = trap_base_address_bin + "1" + trap_number_bin + "0".repeat(4);
+                    const trap_address = twosComplementBinaryToNumber(trap_address_bin);
+
+                    const cc_bin = "0".repeat(8) + (cpu.getCCR().n ? "1" : "0") + 
+                        (cpu.getCCR().z ? "1" : "0") + 
+                        (cpu.getCCR().v ? "1" : "0") + 
+                        (cpu.getCCR().c ? "1" : "0") + "0".repeat(20);
+                    const cc = twosComplementBinaryToNumber(cc_bin);
+                    const current_pc = cpu.getPC();
+
+                    cpu.setTrapBaseRegister(trap_address);
+                    cpu.setRegister(16, current_pc);
+                    cpu.setRegister(17, cc);
+                    cpu.setNextBranchDisp(trap_address - current_pc);
+                    cpu.setEnableTraps(false);
+                } catch (e) {
+                    throw new Error("Invalid register: " + e);
+                }
+            }
         },
         wr: {
             // Write a value to special registers

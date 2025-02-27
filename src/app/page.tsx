@@ -6,6 +6,7 @@ import { assemble } from './simulator/assembler';
 import { RegistersView } from './components/display/RegistersView';
 import { CPUInfo } from './components/display/CPUInfo';
 import { MemoryView } from './components/display/MemoryView';
+import { Terminal } from './components/display/Terminal';
 import { Simulator } from './simulator/simulator';
 import { twosComplementHexToNumber, numberToTwosComplementHex } from './utils/helpers';
 import { isClient, getWindow } from './utils/client';
@@ -50,7 +51,7 @@ export default function Home() {
   const [binaryCode, setBinaryCode] = useState('');
   const [activeTab, setActiveTab] = useState<'assembly' | 'binary'>('assembly');
   const [assemblyError, setAssemblyError] = useState<string | null>(null);
-  const [terminalHeight, setTerminalHeight] = useState(150);
+  const [terminalHeight, setTerminalHeight] = useState(120);
   const [isDragging, setIsDragging] = useState(false);
   const startYRef = useRef<number>(0);
   const startHeightRef = useRef<number>(0);
@@ -66,6 +67,10 @@ export default function Home() {
   const [programCounter, setProgramCounter] = useState(() => 
     numberToTwosComplementHex(cpu.getPC(), 32)
   );
+  const [trapBaseRegister, setTrapBaseRegister] = useState(() => 
+    numberToTwosComplementHex(cpu.getTrapBaseRegister(), 32)
+  );
+  const [enableTraps, setEnableTraps] = useState(() => cpu.getEnableTraps());
   const [cpuFlags, setCpuFlags] = useState({
     negative: false,
     zero: false,
@@ -75,6 +80,19 @@ export default function Home() {
   const [displayMode, setDisplayMode] = useState<'hex' | 'dec'>('hex');
   const [memoryVersion, setMemoryVersion] = useState(0);
   const [baseLocation, setBaseLocation] = useState(0);
+  const [terminalLines, setTerminalLines] = useState<string[]>([]);
+  const [isRunning, setIsRunning] = useState(false);
+  const isRunningRef = useRef(false);
+
+  // Calculate the height for the simulation terminal
+  const simulationTerminalHeight = 120; // Match the height set for simulation Terminal component
+  
+  // Calculate editor height to balance with the left side
+  const getEditorHeight = () => {
+    // Account for tabs (35px), file menu (30px), resize handle (8px), and padding
+    const nonTerminalHeight = 35 + 30 + 8 + 16; // 16px for padding
+    return CONTAINER_HEIGHT - terminalHeight - nonTerminalHeight;
+  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
@@ -91,8 +109,11 @@ export default function Home() {
       
       // Calculate delta (negative when moving up, positive when moving down)
       const delta = e.clientY - startYRef.current;
-      // Invert the delta to make upward movement increase height
-      const newHeight = Math.max(40, Math.min(CONTAINER_HEIGHT - 200, startHeightRef.current - delta));
+      
+      // Calculate new height (smaller delta = larger terminal since we're dragging from top border)
+      // Limit the range to prevent terminal from becoming too small or too large
+      const newHeight = Math.max(40, Math.min(CONTAINER_HEIGHT - 150, startHeightRef.current - delta));
+      
       setTerminalHeight(newHeight);
     };
 
@@ -103,11 +124,14 @@ export default function Home() {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      // Add a class to the body to prevent text selection during resize
+      document.body.classList.add('resize-y');
     }
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.body.classList.remove('resize-y');
     };
   }, [isDragging]);
 
@@ -338,6 +362,11 @@ export default function Home() {
     }
   };
 
+  const handleEnableTrapsChange = (value: boolean) => {
+    setEnableTraps(value);
+    cpu.setEnableTraps(value);
+  };
+
   const handleFlagChange = (flag: keyof typeof cpuFlags, value: boolean) => {
     // Update UI state
     setCpuFlags(prev => ({
@@ -394,6 +423,17 @@ export default function Home() {
     setProgramCounter(numberToTwosComplementHex(pcValue, 32));
   }, [cpu]);
 
+  // Function to refresh trap base register display from CPU
+  const refreshTrapBaseRegister = useCallback(() => {
+    const tbrValue = cpu.getTrapBaseRegister();
+    setTrapBaseRegister(numberToTwosComplementHex(tbrValue, 32));
+  }, [cpu]);
+
+  // Function to refresh enable traps state from CPU
+  const refreshEnableTraps = useCallback(() => {
+    setEnableTraps(cpu.getEnableTraps());
+  }, [cpu]);
+
   // Initialize registers display on mount
   useEffect(() => {
     refreshRegisters();
@@ -403,6 +443,16 @@ export default function Home() {
   useEffect(() => {
     refreshProgramCounter();
   }, [refreshProgramCounter]);
+
+  // Initialize TBR display on mount
+  useEffect(() => {
+    refreshTrapBaseRegister();
+  }, [refreshTrapBaseRegister]);
+
+  // Initialize Enable Traps on mount
+  useEffect(() => {
+    refreshEnableTraps();
+  }, [refreshEnableTraps]);
 
   // Add debug keyboard shortcut
   useEffect(() => {
@@ -432,8 +482,18 @@ export default function Home() {
             hex: numberToTwosComplementHex(cpu.getPC(), 32),
             dec: cpu.getPC()
           },
+          tbr: {
+            hex: numberToTwosComplementHex(cpu.getTrapBaseRegister(), 32),
+            dec: cpu.getTrapBaseRegister()
+          },
+          enableTraps: cpu.getEnableTraps(),
           ccr: cpu.getCCR(),
           memory: memoryValues,
+          console: {
+            status: cpu.safeReadMemory(0xffff0004),
+            statusCounter: cpu.getConsoleStatusCounter(),
+            isReady: cpu.safeReadMemory(0xffff0004) === "80000000"
+          },
           cpu: cpu
         });
       }
@@ -444,7 +504,7 @@ export default function Home() {
       win.addEventListener('keydown', handleKeyDown);
       return () => win.removeEventListener('keydown', handleKeyDown);
     }
-  }, [cpu, registers]); // Include dependencies
+  }, [cpu, registers, trapBaseRegister, enableTraps]); // Include dependencies
 
   const handleClearRegisters = () => {
     for (let i = 0; i < 32; i++) 
@@ -481,26 +541,93 @@ export default function Home() {
 
   const getBreakpoints = useCallback(() => simulator.getBreakpoints(), [simulator]);
 
+  // Add function to clear terminal
+  const clearTerminal = () => {
+    setTerminalLines([]);
+  };
+
+  // Register CPU console write listener
+  useEffect(() => {
+    const consoleWriteHandler = (char: string) => {
+      // For newline characters, add a new empty line
+      if (char === '\n') {
+        setTerminalLines(prev => [...prev, '']);
+      } else if (char === '\r') {
+        // Handle carriage return - typically we'd need to overwrite the current line
+        // For simplicity, we're just ignoring it here
+      } else {
+        // For regular characters, append to the last line if it exists, otherwise create a new line
+        setTerminalLines(prev => {
+          if (prev.length === 0) {
+            return [char];
+          }
+          
+          const newLines = [...prev];
+          newLines[newLines.length - 1] += char;
+          return newLines;
+        });
+      }
+    };
+
+    // Add the listener
+    cpu.addConsoleWriteListener(consoleWriteHandler);
+
+    // Cleanup on unmount
+    return () => {
+      cpu.removeConsoleWriteListener(consoleWriteHandler);
+    };
+  }, [cpu]);
+
+  // Silent version of addTerminalMessage that doesn't actually add anything
+  // This is used to replace all the status update calls without changing their structure
+  const addTerminalMessage = () => {
+    // Intentionally empty - we don't want to show status messages
+  };
+
   return (
     <main className="min-h-screen p-4 bg-[#1A1A1A]">
+      {/* Add the global CSS for resize-y class */}
+      <style jsx global>{`
+        .resize-y {
+          cursor: ns-resize !important;
+          user-select: none !important;
+        }
+        .resize-x {
+          cursor: ew-resize !important;
+          user-select: none !important;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;  /* IE and Edge */
+          scrollbar-width: none;     /* Firefox */
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;             /* Chrome, Safari and Opera */
+        }
+      `}</style>
+
       <div className="container mx-auto">
         <h1 className="text-2xl font-bold mb-1 text-[#E1E8ED] text-center">ARC Assembly Simulator</h1>
         <p className="text-center text-[#A0AEC0] mb-4">
           by <a href="https://rivanjarjes.com" className="text-[#569CD6] hover:underline" target="_blank" rel="noopener noreferrer">Rivan Jarjes</a>
+          {" | "}
+          <a href="https://github.com/RivanJarjes/arc-tools-web" className="text-[#569CD6] hover:underline" target="_blank" rel="noopener noreferrer">Source Code</a>
         </p>
         
         {/* Add flex container for the two halves */}
         <div className="flex gap-0 relative">
           {/* Left container */}
           <div 
-            className="bg-[#1E1E1E] rounded-l-lg shadow-xl p-4"
+            className="bg-[#1E1E1E] rounded-l-lg shadow-xl p-4 flex flex-col"
             style={{ width: `${leftContainerWidth}%` }}
           >
             <CPUInfo
               programCounter={programCounter}
               onProgramCounterChange={handleProgramCounterChange}
+              trapBaseRegister={trapBaseRegister}
               flags={cpuFlags}
               onFlagChange={handleFlagChange}
+              enableTraps={enableTraps}
+              onEnableTrapsChange={handleEnableTrapsChange}
               displayMode={displayMode}
             />
             <RegistersView 
@@ -509,10 +636,13 @@ export default function Home() {
               onDisplayModeChange={setDisplayMode}
               onClearRegisters={handleClearRegisters}
               onClearMemory={handleClearMemory}
+              isRunning={isRunning}
               onUpload={(binaryContent: string) => {
                 try {
                   cpu.loadBinaryCode(binaryContent);
                   refreshProgramCounter();
+                  refreshTrapBaseRegister();
+                  refreshEnableTraps();
                   refreshMemory();
                   // Update memory view base location to match new PC
                   const newPC = cpu.getPC();
@@ -520,9 +650,16 @@ export default function Home() {
                   const baseLocation = newPC & ~0x1F;
                   setBaseLocation(baseLocation);
                   setTerminalHistory('Binary file loaded successfully');
+                  
+                  // Clear terminal when loading binary
+                  clearTerminal();
+                  addTerminalMessage();
                 } catch (error) {
                   console.error('Error loading binary file:', error);
                   setTerminalHistory('Error loading binary file: ' + (error instanceof Error ? error.message : 'Unknown error'));
+                  
+                  // Add error to terminal
+                  addTerminalMessage();
                 }
               }}
               onReset={() => {
@@ -548,15 +685,30 @@ export default function Home() {
                     carry: false
                   });
                   
+                  // Reset trap base register to default value (-16777216)
+                  cpu.setTrapBaseRegister(-16777216);
+                  refreshTrapBaseRegister();
+                  
+                  // Reset enable traps to default value (false)
+                  cpu.setEnableTraps(false);
+                  refreshEnableTraps();
+                  
                   // Update memory view base location to match new PC
                   const newPC = cpu.getPC();
                   // Round down to nearest multiple of 32 (8 words) to show context
                   const baseLocation = newPC & ~0x1F;
                   setBaseLocation(baseLocation);
                   setTerminalHistory('Binary code reloaded successfully');
+                  
+                  // Clear terminal when resetting
+                  clearTerminal();
+                  addTerminalMessage();
                 } catch (error) {
                   console.error('Error reloading binary code:', error);
                   setTerminalHistory('Error reloading binary code: ' + (error instanceof Error ? error.message : 'Unknown error'));
+                  
+                  // Add error to terminal
+                  addTerminalMessage();
                 }
               }}
               onStep={() => {
@@ -570,11 +722,16 @@ export default function Home() {
                     setAssemblyError(e instanceof Error ? e.message : 'Unknown error');
                     setTerminalHistory(e instanceof Error ? e.message : 'Unknown error');
                     error = true;
+                    
+                    // Add error to terminal
+                    addTerminalMessage();
                   }
                   
                   // Update UI state
                   refreshRegisters();
                   refreshProgramCounter();
+                  refreshTrapBaseRegister();
+                  refreshEnableTraps();
                   refreshMemory();
 
                   // Check if the current PC is outside of the displayed memory range (8 words = 32 bytes) and update baseLocation if needed
@@ -596,14 +753,128 @@ export default function Home() {
                   if (!error) {
                     setAssemblyError(null);
                     setTerminalHistory('Executed instruction successfully');
+                    
+                    // Add step info to terminal
+                    const instruction = cpu.safeReadMemory(pc - 4);
+                    try {
+                      // No need to store decoded instruction if we're not using it
+                      cpu.interpretInstruction(instruction);
+                      addTerminalMessage();
+                    } catch {
+                      addTerminalMessage();
+                    }
                   }
               }}
-              onRun={() => {/* TODO: Add run handler */}}
-              onStop={() => {/* TODO: Add stop handler */}}
+              onRun={() => {
+                // Don't start if already running
+                if (isRunningRef.current) {
+                  return;
+                }
+                
+                // Set execution state
+                setIsRunning(true);
+                isRunningRef.current = true;
+                setAssemblyError(null);
+                
+                // Set up variables to track execution state
+                let instructionsExecuted = 0;
+                const MAX_INSTRUCTIONS = 1000000; // Safety limit to prevent infinite loops
+                const BATCH_SIZE = 500; // Execute this many instructions before yielding to the event loop
+                
+                // Function to update UI status when execution stops
+                const stopExecution = (message: string) => {
+                  setIsRunning(false);
+                  isRunningRef.current = false;
+                  setTerminalHistory(message);
+                };
+                
+                // Function to run one batch of instructions
+                const runBatch = () => {
+                  // Immediately check if we should stop
+                  if (!isRunningRef.current) {
+                    stopExecution(`Execution stopped: ${instructionsExecuted} instructions executed`);
+                    return;
+                  }
+                  
+                  // Execute a batch of instructions
+                  let batchCount = 0;
+                  
+                  while (batchCount < BATCH_SIZE && isRunningRef.current && instructionsExecuted < MAX_INSTRUCTIONS) {
+                    // Get current PC and instruction
+                    const pc = cpu.getPC();
+                    const instruction = cpu.safeReadMemory(pc);
+                    
+                    // Check for breakpoints
+                    if (simulator.hasBreakpoint(pc)) {
+                      stopExecution(`Stopped at breakpoint 0x${pc.toString(16).padStart(8, '0')}`);
+                      return;
+                    }
+                    
+                    // Check for halt instruction (ffffffff)
+                    if (instruction === "ffffffff") {
+                      stopExecution('Execution halted: "halt" instruction reached');
+                      return;
+                    }
+                    
+                    // Execute the instruction
+                    try {
+                      cpu.executeInstruction();
+                      instructionsExecuted++;
+                      batchCount++;
+                    } catch (e) {
+                      console.error('Error executing instruction:', e);
+                      setAssemblyError(e instanceof Error ? e.message : 'Unknown error');
+                      stopExecution(`Execution halted: ${e instanceof Error ? e.message : 'Unknown error'}`);
+                      return;
+                    }
+                  }
+                  
+                  // Update UI state after the batch
+                  refreshRegisters();
+                  refreshProgramCounter();
+                  refreshTrapBaseRegister();
+                  refreshEnableTraps();
+                  refreshMemory();
+                  
+                  // Update condition code flags from CPU
+                  const ccr = cpu.getCCR();
+                  setCpuFlags({
+                    negative: ccr.n,
+                    zero: ccr.z,
+                    overflow: ccr.v,
+                    carry: ccr.c
+                  });
+                  
+                  // Update memory view to show current PC location
+                  const finalPC = cpu.getPC();
+                  if (finalPC < baseLocation || finalPC >= baseLocation + 32) {
+                    setBaseLocation(finalPC & ~0x1F);
+                  }
+                  
+                  // Safety check to prevent infinite loops
+                  if (instructionsExecuted >= MAX_INSTRUCTIONS) {
+                    stopExecution(`Execution halted: Maximum instruction limit (${MAX_INSTRUCTIONS}) reached`);
+                    return;
+                  }
+                  
+                  // Continue execution with requestAnimationFrame for better performance
+                  requestAnimationFrame(runBatch);
+                };
+                
+                // Start execution
+                requestAnimationFrame(runBatch);
+              }}
+              onStop={() => {
+                if (isRunningRef.current) {
+                  setIsRunning(false);
+                  isRunningRef.current = false;
+                  setTerminalHistory('Stop requested, execution will halt after current instruction');
+                }
+              }}
             />
             <MemoryView
               memory={getMemoryValues(Array.from({ length: 8 }, (_, i) => baseLocation + (i * 4)))}
-              currentLocation={parseInt(programCounter, 16)}
+              currentLocation={twosComplementHexToNumber(programCounter, 32)}
               onMemoryChange={(address: number, value: string) => {
                 try {
                   // Ensure the value is padded to the correct length for a word
@@ -612,8 +883,13 @@ export default function Home() {
                   cpu.writeMemory(address, paddedValue, 4);
                   // Refresh the memory display
                   refreshMemory();
+                  
+                  // Add message to terminal
+                  addTerminalMessage();
                 } catch (error) {
                   console.error('Error writing to memory:', error);
+                  // Add error to terminal
+                  addTerminalMessage();
                 }
               }}
               displayMode={displayMode}
@@ -623,6 +899,14 @@ export default function Home() {
               baseLocation={baseLocation}
               onBaseLocationChange={setBaseLocation}
             />
+            
+            {/* Add Terminal component */}
+            <Terminal 
+              lines={terminalLines} 
+              maxLines={15}
+              height={`${simulationTerminalHeight}px`}
+              cpu={cpu}
+            />
           </div>
 
           {/* Resize handle */}
@@ -631,12 +915,12 @@ export default function Home() {
             onMouseDown={handleContainerResizeStart}
           />
 
-          {/* Right container - existing content */}
+          {/* Right container */}
           <div 
-            className="bg-[#1E1E1E] rounded-r-lg shadow-xl"
+            className="bg-[#1E1E1E] rounded-r-lg shadow-xl flex flex-col justify-between"
             style={{ width: `${100 - leftContainerWidth}%` }}
           >
-            <div className="rounded-lg overflow-hidden shadow-xl">
+            <div className="rounded-lg overflow-hidden shadow-xl flex-grow">
               {/* Tabs row */}
               <div className="flex bg-[#2D2D2D]">
                 <button
@@ -698,8 +982,8 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Editor content */}
-              <div style={{ height: `${CONTAINER_HEIGHT - terminalHeight - 4}px` }}>
+              {/* Editor content with fixed height calculation */}
+              <div style={{ height: `${getEditorHeight()}px` }}>
                 <div style={{ display: activeTab === 'assembly' ? 'block' : 'none', height: '100%' }}>
                   <Editor 
                     value={code}
@@ -720,12 +1004,18 @@ export default function Home() {
                   />
                 </div>
               </div>
+              
+              {/* Terminal separator */}
               <div
-                className="h-1 bg-[#2D2D2D] cursor-ns-resize hover:bg-[#569CD6] transition-colors"
+                className="h-2 bg-[#2D2D2D] cursor-ns-resize hover:bg-[#569CD6] flex items-center justify-center transition-colors"
                 onMouseDown={handleMouseDown}
-              ></div>
+              >
+                <div className="w-16 h-1 bg-[#3D3D3D] rounded-full"></div>
+              </div>
+              
+              {/* Assembly logs terminal */}
               <div 
-                className="bg-[#1E1E1E] p-3 overflow-auto transition-all duration-200"
+                className="bg-[#1E1E1E] p-3 overflow-auto scrollbar-hide transition-all duration-200"
                 style={{ height: `${terminalHeight}px` }}
               >
                 <div className="font-mono text-sm">
@@ -745,43 +1035,54 @@ export default function Home() {
               </div>
             </div>
             
-            {/* Update the button container to include both buttons */}
-            <div className="mt-2 mb-2 flex gap-2">
-              <button
-                onClick={handleAssemble}
-                className="px-4 py-2 bg-[#569CD6] text-white rounded hover:bg-[#4E8CC2] transition-colors flex-1"
-              >
-                Assemble
-              </button>
-              <button
-                onClick={() => {
-                  try {
-                    // Clear registers before simulation
-                    handleClearRegisters();
-                    // Clear CPU memory before writing binary code
-                    cpu.clearMemory();
-                    cpu.loadBinaryCode(binaryCode);
-                    refreshProgramCounter();
-                    refreshMemory();
-                    // Update memory view base location to match new PC exactly
-                    // No need to round down since we want PC at the top
-                    const newPC = cpu.getPC();
-                    setBaseLocation(newPC);
-                    setTerminalHistory('Binary code loaded into simulation successfully');
-                  } catch (error) {
-                    console.error('Error loading binary code:', error);
-                    setTerminalHistory('Error loading binary code: ' + (error instanceof Error ? error.message : 'Unknown error'));
-                  }
-                }}
-                disabled={!binaryCode}
-                className={`px-4 py-2 rounded transition-colors flex-1 ${
-                  binaryCode 
-                    ? 'bg-[#569CD6] text-white hover:bg-[#4E8CC2]' 
-                    : 'bg-[#2D2D2D] text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                Binary -&gt; Simulation
-              </button>
+            {/* Button container - positioned at the very bottom */}
+            <div className="px-3 py-3 border-t border-[#2D2D2D]">
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAssemble}
+                  className="px-4 py-2 bg-[#569CD6] text-white rounded hover:bg-[#4E8CC2] transition-colors flex-1"
+                >
+                  Assemble
+                </button>
+                <button
+                  onClick={() => {
+                    try {
+                      // Clear registers before simulation
+                      handleClearRegisters();
+                      // Clear CPU memory before writing binary code
+                      cpu.clearMemory();
+                      cpu.loadBinaryCode(binaryCode);
+                      refreshProgramCounter();
+                      refreshTrapBaseRegister();
+                      refreshEnableTraps();
+                      refreshMemory();
+                      // Update memory view base location to match new PC exactly
+                      // No need to round down since we want PC at the top
+                      const newPC = cpu.getPC();
+                      setBaseLocation(newPC);
+                      setTerminalHistory('Binary code loaded into simulation successfully');
+                      
+                      // Clear terminal and add success message
+                      clearTerminal();
+                      addTerminalMessage();
+                    } catch (error) {
+                      console.error('Error loading binary code:', error);
+                      setTerminalHistory('Error loading binary code: ' + (error instanceof Error ? error.message : 'Unknown error'));
+                      
+                      // Add error to terminal
+                      addTerminalMessage();
+                    }
+                  }}
+                  disabled={!binaryCode}
+                  className={`px-4 py-2 rounded transition-colors flex-1 ${
+                    binaryCode 
+                      ? 'bg-[#569CD6] text-white hover:bg-[#4E8CC2]' 
+                      : 'bg-[#2D2D2D] text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  Binary -&gt; Simulation
+                </button>
+              </div>
             </div>
           </div>
         </div>
