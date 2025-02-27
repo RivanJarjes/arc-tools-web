@@ -1,6 +1,6 @@
 "use client";
 
-import Editor from '@/app/components/editor/Editor';
+import Editor from './components/Editor/Editor';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { assemble } from './simulator/assembler';
 import { RegistersView } from './components/display/RegistersView';
