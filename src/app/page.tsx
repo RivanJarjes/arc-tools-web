@@ -484,7 +484,10 @@ export default function Home() {
   return (
     <main className="min-h-screen p-4 bg-[#1A1A1A]">
       <div className="container mx-auto">
-        <h1 className="text-2xl font-bold mb-4 text-[#E1E8ED] text-center">ARC Assembly Simulator</h1>
+        <h1 className="text-2xl font-bold mb-1 text-[#E1E8ED] text-center">ARC Assembly Simulator</h1>
+        <p className="text-center text-[#A0AEC0] mb-4">
+          by <a href="https://rivanjarjes.com" className="text-[#569CD6] hover:underline" target="_blank" rel="noopener noreferrer">Rivan Jarjes</a>
+        </p>
         
         {/* Add flex container for the two halves */}
         <div className="flex gap-0 relative">
