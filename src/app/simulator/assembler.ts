@@ -118,6 +118,9 @@ function first_pass(instructions: string[]): MemoryMap {
 
                     if (pc % 4 != 0)
                         error("Memory address must be word aligned (a multiple of 4): " + tokens[1]);
+
+					if (isNaN(starting_address))
+						starting_address = pc;
 					continue;
                 case ".dwb":
                     let dwb_value: number;
