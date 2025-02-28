@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# arc-tools-web
+
+A web adaptation of [ARCTools](https://iiusatech.com/murdocca/CAO/) originally made in Java.
+
+![image](https://github.com/user-attachments/assets/9c34b489-d859-44bb-9529-885c0c8d56ca)
+
+## Description
+
+arc-tools-web is an interactive web-based simulator for the ARC (a subset of the [SPARC](https://en.wikipedia.org/wiki/SPARC) instruction set) assembly language. Write, assemble, run, and debug ARC assembly code directly in your browser.
+
+### Features
+
+- Updates to dated original version of ARCTools written in Java
+    - Fixed crashes
+    - Improved code editor
+    - Improved error handling
+    - Cleaner UI
+- Integrated Assembly Code Editor ([using the Monaco Editor](https://microsoft.github.io/monaco-editor/))
+    - Syntax highlighting and auto-completion for ARC assembly language
+    - Line numbers and error highlighting
+- Full CPU Simulation
+    - Complete implementation of the ARC instruction set
+    - View and modify all 32 general-purpose registers
+    - Monitor and control program counter, trap base register, and condition codes
+    - Execute step-by-step or run continuously
+    - Set breakpoints for debugging
+- Memory Inspection
+    - Up to 4GB memory space
+    - View memory contents in real-time
+    - Display values in hexadecimal or decimal format
+- I/O Simulation
+    - Console output for program interaction
+    - Keyboard input support
+- File Operations
+    - Create, open, and save assembly files
+    - Load pre-assembled binary files
+    - Automatic assembly of code to machine code
+- Debugging Tools
+    - Step through code instruction by instruction
+    - Run until breakpoint
+    - Clear registers and memory
 
 ## Getting Started
 
-First, run the development server:
+### Online Version
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Use the simulator directly in your browser without installation: [Arc Assembly Simulator](https://rivanjarjes.com/arc-simulator)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Local Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+To run the simulator locally:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Learn More
+1. Clone the repository:
+   ```
+   git clone https://github.com/RivanJarjes/arc-tools-web.git
+   cd arc-tools-web
+   ```
+2. Install dependencies:
+   ```
+   npm install
+   ```
+3. Start the development server:
+   ```
+   npm run dev
+   ```
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-To learn more about Next.js, take a look at the following resources:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Supported Instructions
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The simulator supports the full ARC instruction set including:
 
-## Deploy on Vercel
+- Arithmetic operations (add, sub, etc.)
+- Logical operations (and, or, xor, etc.)
+- Memory operations (ld, st, ldub, stb, etc.)
+- Branch instructions (ba, be, bne, etc.)
+- System calls through traps
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Technology Stack
+
+- **Frontend**: Next.js, React
+- **Editor**: [Monaco Editor](https://microsoft.github.io/monaco-editor/)
+- **Styling**: Tailwind CSS
+- **Icons**: [Font Awesome](https://fontawesome.com/)
+
+## Limitations
+
+- The simulator is designed for educational purposes and may not implement all edge cases
+- Performance may be limited for very large programs
+- Some advanced features of hardware ARC implementations may not be available (most trapping cases for example)
