@@ -786,6 +786,28 @@ export default function Home() {
                   setIsRunning(false);
                   isRunningRef.current = false;
                   setTerminalHistory(message);
+                  
+                  // Make sure memory view is refreshed when execution stops
+                  refreshRegisters();
+                  refreshProgramCounter();
+                  refreshTrapBaseRegister();
+                  refreshEnableTraps();
+                  refreshMemory();
+                  
+                  // Update condition code flags from CPU
+                  const ccr = cpu.getCCR();
+                  setCpuFlags({
+                    negative: ccr.n,
+                    zero: ccr.z,
+                    overflow: ccr.v,
+                    carry: ccr.c
+                  });
+                  
+                  // Update memory view to show current PC location
+                  const finalPC = cpu.getPC();
+                  if (finalPC < baseLocation || finalPC >= baseLocation + 32) {
+                    setBaseLocation(finalPC & ~0x1F);
+                  }
                 };
                 
                 // Function to run one batch of instructions
