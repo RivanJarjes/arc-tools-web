@@ -18,7 +18,7 @@ arc-tools-web is an interactive web-based simulator for the ARC (a subset of the
 - Integrated Assembly Code Editor ([using the Monaco Editor](https://microsoft.github.io/monaco-editor/))
     - Syntax highlighting and auto-completion for ARC assembly language
     - Line numbers and error highlighting
-- Full CPU Simulation
+- Full Client-Side CPU Simulation
     - Complete implementation of the ARC instruction set
     - View and modify all 32 general-purpose registers
     - Monitor and control program counter, trap base register, and condition codes
