@@ -25,7 +25,7 @@ arc-tools-web is an interactive web-based simulator for the ARC (a subset of the
     - Execute step-by-step or run continuously
     - Set breakpoints for debugging
 - Memory Inspection
-    - Up to 4GB memory space
+    - Up to 4GB memory space, using 4KB page size
     - View memory contents in real-time
     - Display values in hexadecimal or decimal format
 - I/O Simulation
