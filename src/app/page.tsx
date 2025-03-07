@@ -935,6 +935,7 @@ export default function Home() {
                     
                     // Check for halt instruction (ffffffff)
                     if (instruction === "ffffffff") {
+                      cpu.executeInstruction();
                       stopExecution('Execution halted: "halt" instruction reached');
                       return;
                     }
