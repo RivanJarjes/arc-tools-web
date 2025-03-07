@@ -49,7 +49,7 @@ export default function Home() {
   const cpu = simulator.getCPU();
   const [code, setCode] = useState('');
   const [binaryCode, setBinaryCode] = useState('');
-  const [activeTab, setActiveTab] = useState<'assembly' | 'binary'>('assembly');
+  const [activeTab, setActiveTab] = useState<'assembly' | 'binary' | 'examples'>('assembly');
   const [assemblyError, setAssemblyError] = useState<string | null>(null);
   const [terminalHeight, setTerminalHeight] = useState(120);
   const [isDragging, setIsDragging] = useState(false);
@@ -83,6 +83,46 @@ export default function Home() {
   const [terminalLines, setTerminalLines] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const isRunningRef = useRef(false);
+  const [exampleFiles, setExampleFiles] = useState<{name: string, path: string}[]>([]);
+
+  // Fetch example files when component mounts
+  useEffect(() => {
+    // List of example files in the public directory
+    const examples = [
+      'division.asm',
+      'exponent.asm',
+      'get_iee754_exponent.asm',
+      'hextest.asm',
+      'instructiontest.asm',
+      'load_addition.asm',
+      'loadtest.asm',
+      'multiplication.asm',
+      'storetest.asm',
+      'subtest.asm'
+    ];
+    
+    setExampleFiles(examples.map(file => ({
+      name: file.replace('.asm', ''),
+      path: `/${file}`
+    })));
+  }, []);
+
+  // Function to load an example file
+  const handleLoadExample = async (path: string) => {
+    try {
+      const response = await fetch(path);
+      if (!response.ok) {
+        throw new Error(`Failed to load example file: ${response.statusText}`);
+      }
+      const content = await response.text();
+      setCode(content);
+      setActiveTab('assembly');
+      setTerminalHistory(`Loaded example: ${path.split('/').pop()}`);
+    } catch (error) {
+      console.error('Error loading example:', error);
+      setTerminalHistory(`Error loading example: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
 
   // Calculate the height for the simulation terminal
   const simulationTerminalHeight = 120; // Match the height set for simulation Terminal component
@@ -233,7 +273,9 @@ export default function Home() {
       setAssemblyError(null);
       // Clear binary code and switch to assembly tab before assembling
       setBinaryCode('');
-      setActiveTab('assembly');
+      if (activeTab !== 'assembly') {
+        setActiveTab('assembly');
+      }
       
       const assembled = assemble(code);
       console.log('Assembled code:', assembled);
@@ -256,7 +298,7 @@ export default function Home() {
     }
   };
 
-  const handleTabChange = (tab: 'assembly' | 'binary') => {
+  const handleTabChange = (tab: 'assembly' | 'binary' | 'examples') => {
     if (tab === 'binary' && !binaryCode) return;
     setActiveTab(tab);
   };
@@ -968,6 +1010,16 @@ export default function Home() {
                 >
                   Binary File
                 </button>
+                <button
+                  onClick={() => handleTabChange('examples')}
+                  className={`px-6 py-2 text-sm font-medium transition-colors ${
+                    activeTab === 'examples'
+                      ? 'bg-[#1E1E1E] text-white border-b-2 border-[#569CD6]'
+                      : 'bg-[#2D2D2D] text-gray-400 hover:text-gray-300'
+                  }`}
+                >
+                  Load Examples
+                </button>
               </div>
 
               {/* File menu row */}
@@ -1024,6 +1076,34 @@ export default function Home() {
                     renderWhitespace="all"
                     lineNumbers="on"
                   />
+                </div>
+                <div 
+                  style={{ display: activeTab === 'examples' ? 'block' : 'none', height: '100%' }}
+                  className="bg-[#1E1E1E] p-4 overflow-auto"
+                >
+                  <h2 className="text-lg text-white font-medium mb-4">Example Assembly Files</h2>
+                  <p className="text-gray-400 mb-4">
+                    Click on an example to load it into the Assembly Editor.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    {exampleFiles.map((file, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleLoadExample(file.path)}
+                        className="bg-[#2D2D2D] hover:bg-[#3D3D3D] transition-colors text-left p-3 rounded-md group"
+                      >
+                        <div className="flex items-center">
+                          <svg className="w-5 h-5 text-[#569CD6] mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M20 8L14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M14 2V8H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          <span className="text-gray-300 group-hover:text-white transition-colors">
+                            {file.name}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               

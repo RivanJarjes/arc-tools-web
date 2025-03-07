@@ -1547,6 +1547,10 @@ export const pseudoOps = {
 		// Define a word (4 bytes)
 		operands: 1,
 	},
+    equ: {
+        // Define a value
+        operands: 1,
+    },
 	if: {
 		// If the condition is true
 		operands: 1,
