@@ -31,6 +31,7 @@ export interface RegistersViewProps {
   onDisplayModeChange?: (mode: DisplayMode) => void;
   onClearRegisters: () => void;
   onClearMemory: () => void;
+  onClearBreakpoints: () => void;
   onUpload?: (binaryContent: string) => void;
   onReset?: () => void;
   onStep?: () => void;

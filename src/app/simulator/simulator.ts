@@ -19,6 +19,11 @@ export class Simulator {
         console.log('Breakpoints:', Array.from(this.breakpoints).sort((a, b) => a - b));
     }
 
+    public clearBreakpoints(): void {
+        this.breakpoints.clear();
+        console.log('Breakpoints:', Array.from(this.breakpoints).sort((a, b) => a - b));
+    }
+
     public hasBreakpoint(address: number): boolean {
         return this.breakpoints.has(address);
     }

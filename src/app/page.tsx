@@ -619,6 +619,13 @@ export default function Home() {
     refreshMemory(); // Update the display
   };
 
+  // Function to clear all breakpoints
+  const handleClearBreakpoints = () => {
+    simulator.clearBreakpoints();
+    // Force re-render by incrementing version
+    setMemoryVersion(v => v + 1);
+  };
+
   // Function to get memory values for display
   const getMemoryValues = (locations: number[]): string[] => {
     return locations.map(loc => cpu.safeReadMemory(loc));
@@ -737,6 +744,7 @@ export default function Home() {
               onDisplayModeChange={setDisplayMode}
               onClearRegisters={handleClearRegisters}
               onClearMemory={handleClearMemory}
+              onClearBreakpoints={handleClearBreakpoints}
               isRunning={isRunning}
               onUpload={(binaryContent: string) => {
                 try {
@@ -928,7 +936,7 @@ export default function Home() {
                     const instruction = cpu.safeReadMemory(pc);
                     
                     // Check for breakpoints
-                    if (simulator.hasBreakpoint(pc)) {
+                    if (simulator.hasBreakpoint(pc) && batchCount !== 0) {
                       stopExecution(`Stopped at breakpoint 0x${pc.toString(16).padStart(8, '0')}`);
                       return;
                     }

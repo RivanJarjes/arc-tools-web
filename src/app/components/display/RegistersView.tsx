@@ -11,6 +11,7 @@ export function RegistersView({
   onDisplayModeChange, 
   onClearRegisters,
   onClearMemory,
+  onClearBreakpoints,
   onUpload,
   onReset,
   onStep,
@@ -128,6 +129,14 @@ export function RegistersView({
                      focus:outline-none focus:ring-2 focus:ring-[#569CD6] focus:ring-opacity-50"
           >
             Clear Memory
+          </button>
+          <button
+            onClick={onClearBreakpoints}
+            className="px-3 py-1.5 bg-[#2D2D2D] text-gray-400 hover:text-white 
+                     rounded-lg hover:bg-[#3D3D3D] transition-colors text-xs
+                     focus:outline-none focus:ring-2 focus:ring-[#569CD6] focus:ring-opacity-50"
+          >
+            Clear Breakpoints
           </button>
         </div>
       </div>
