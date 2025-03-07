@@ -44,6 +44,38 @@ interface CCRUpdate {
 
 const CONTAINER_HEIGHT = 600; // Total height of editor + terminal
 
+// Cookie utility functions for editor content
+function saveEditorContentToCookie(content: string) {
+  try {
+    // Save only first 4KB to avoid cookie size limits
+    const truncatedContent = content.length > 4096 ? content.substring(0, 4096) : content;
+    const expires = new Date();
+    expires.setTime(expires.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    document.cookie = `editorContent=${encodeURIComponent(truncatedContent)};expires=${expires.toUTCString()};path=/`;
+  } catch (error) {
+    console.error('Error saving editor content to cookie:', error);
+  }
+}
+
+function getEditorContentFromCookie(): string | null {
+  try {
+    const nameEQ = 'editorContent=';
+    const ca = document.cookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+      let c = ca[i];
+      while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+      if (c.indexOf(nameEQ) === 0) {
+        const encodedContent = c.substring(nameEQ.length, c.length);
+        return decodeURIComponent(encodedContent);
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Error loading editor content from cookie:', error);
+    return null;
+  }
+}
+
 export default function Home() {
   const [simulator] = useState(() => new Simulator());
   const cpu = simulator.getCPU();
@@ -84,6 +116,7 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const isRunningRef = useRef(false);
   const [exampleFiles, setExampleFiles] = useState<{name: string, path: string}[]>([]);
+  const [isEditorContentLoaded, setIsEditorContentLoaded] = useState(false);
 
   // Fetch example files when component mounts
   useEffect(() => {
@@ -107,6 +140,28 @@ export default function Home() {
     })));
   }, []);
 
+  // Initialize the editor content from cookie when the component mounts
+  useEffect(() => {
+    if (isClient) {
+      const savedContent = getEditorContentFromCookie();
+      if (savedContent) {
+        setCode(savedContent);
+      }
+      setIsEditorContentLoaded(true);
+    }
+  }, [isClient]);
+  
+  // Save editor content to cookie whenever it changes (debounced)
+  useEffect(() => {
+    if (isClient && isEditorContentLoaded) {
+      const timeoutId = setTimeout(() => {
+        saveEditorContentToCookie(code);
+      }, 1000); // 1 second debounce
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [code, isClient, isEditorContentLoaded]);
+
   // Function to load an example file
   const handleLoadExample = async (path: string) => {
     try {
@@ -116,6 +171,7 @@ export default function Home() {
       }
       const content = await response.text();
       setCode(content);
+      saveEditorContentToCookie(content); // Save to cookie when example is loaded
       setActiveTab('assembly');
       setTerminalHistory(`Loaded example: ${path.split('/').pop()}`);
     } catch (error) {
@@ -305,10 +361,8 @@ export default function Home() {
 
   // Add file operation handlers
   const handleNewFile = () => {
-    if (code && !confirm('Are you sure you want to create a new file? Any unsaved changes will be lost.')) {
-      return;
-    }
     setCode('');
+    saveEditorContentToCookie(''); // Clear cookie as well
     setBinaryCode('');
     setTerminalHistory('Ready to assemble');
     setIsFileMenuOpen(false);
@@ -317,17 +371,22 @@ export default function Home() {
   const handleOpenFile = () => {
     // Check if we're in the browser environment
     if (!isClient) return;
-    
+
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.asm';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
+    input.onchange = (e) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      
       if (file) {
-        const text = await file.text();
-        setCode(text);
-        setBinaryCode('');
-        setTerminalHistory('File loaded successfully');
+        const reader = new FileReader();
+        reader.onload = () => {
+          const content = reader.result as string;
+          setCode(content);
+          saveEditorContentToCookie(content); // Save to cookie when file is loaded
+        };
+        reader.readAsText(file);
       }
     };
     input.click();
@@ -1059,12 +1118,14 @@ export default function Home() {
               {/* Editor content with fixed height calculation */}
               <div style={{ height: `${getEditorHeight()}px` }}>
                 <div style={{ display: activeTab === 'assembly' ? 'block' : 'none', height: '100%' }}>
-                  <Editor 
-                    value={code}
-                    onChange={setCode}
-                    language="arc"
-                    height="100%"
-                  />
+                  {isEditorContentLoaded && (
+                    <Editor 
+                      value={code}
+                      onChange={setCode}
+                      language="arc"
+                      height="100%"
+                    />
+                  )}
                 </div>
                 <div style={{ display: activeTab === 'binary' ? 'block' : 'none', height: '100%' }}>
                   <Editor 

@@ -1,8 +1,34 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { DisplayModeSwitchProps } from '../display/types';
 
 export function DisplayModeSwitch({ mode, onChange }: DisplayModeSwitchProps) {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    // Load display mode from cookie
+    const savedMode = getCookie('displayMode');
+    
+    // If cookie exists and differs from current mode, trigger change
+    if (savedMode && (savedMode === 'dec' || savedMode === 'hex') && savedMode !== mode) {
+      onChange(savedMode);
+    }
+    
+    setIsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    // Save mode to cookie whenever it changes
+    if (isLoaded) {
+      setCookie('displayMode', mode, 365); // Save for 1 year
+    }
+  }, [mode, isLoaded]);
+
+  // Don't render until we've loaded and processed the cookie
+  if (!isLoaded) {
+    return <div className="w-[120px] h-[30px] bg-[#2D2D2D] rounded-lg"></div>; // Same size placeholder
+  }
+
   return (
     <div className="flex items-center bg-[#2D2D2D] rounded-lg p-0.5 select-none relative w-[120px]">
       {/* Sliding highlight */}
@@ -44,4 +70,22 @@ export function DisplayModeSwitch({ mode, onChange }: DisplayModeSwitchProps) {
       </button>
     </div>
   );
+} 
+
+// Helper functions for cookie operations
+function setCookie(name: string, value: string, days: number) {
+  const expires = new Date();
+  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+}
+
+function getCookie(name: string): string | null {
+  const nameEQ = `${name}=`;
+  const ca = document.cookie.split(';');
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
 } 
