@@ -81,7 +81,7 @@ function first_pass(instructions: string[]): MemoryMap {
 		if (tokens[0].endsWith(":")) {
             if (assembling) {
                 const label = tokens[0].slice(0, -1);
-                if (/^[a-zA-Z0-9]+$/.test(label)) {
+                if (/^[a-zA-Z0-9_\.]+$/.test(label)) {
                     // Store only the address
                     symbolMap.set(label, { address: pc});
 					if (label == "main")
@@ -680,7 +680,8 @@ function isImmediate(token: string, symbolTable?: MemoryMap): boolean {
 
 function getImmediateValue(token: string, symbolTable?: MemoryMap): number {
     // Handle pure binary numbers
-    if (token.toLowerCase().endsWith('b') && !/[+\-*/]/.test(token)) {
+
+    if (token.toLowerCase().endsWith('b') && !(token.toLowerCase().startsWith('0x')) && !/[+\-*/]/.test(token)) {
         const binPart = token.slice(0, -1);
         if (!/^[01]+$/.test(binPart)) return NaN;
         return twosComplementBinaryToNumber(binPart);
