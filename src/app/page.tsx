@@ -1223,6 +1223,20 @@ export default function Home() {
                       handleClearRegisters();
                       // Clear CPU memory before writing binary code
                       cpu.clearMemory();
+                      // Reset condition codes
+                      cpu.setCCR({
+                        n: false,
+                        z: false,
+                        v: false,
+                        c: false
+                      });
+                      // Also update UI flags
+                      setCpuFlags({
+                        negative: false,
+                        zero: false,
+                        overflow: false,
+                        carry: false
+                      });
                       cpu.loadBinaryCode(binaryCode);
                       refreshProgramCounter();
                       refreshTrapBaseRegister();
