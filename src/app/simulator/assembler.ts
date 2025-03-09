@@ -148,7 +148,12 @@ function first_pass(instructions: string[]): MemoryMap {
 
 		// Only increment PC for actual instructions
 		if (tokens.length > 0 && assembling) {
-			pc += 4; // Each instruction is 4 bytes
+			if (tokens.every(token => isImmediate(token, symbolMap))) {
+				pc += 4 * tokens.length;
+			}
+			else {
+				pc += 4; // Each instruction is 4 bytes
+			}
 		}
 	}
     currentLine = 0;
