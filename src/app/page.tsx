@@ -11,12 +11,11 @@ import { Simulator } from './simulator/simulator';
 import { twosComplementHexToNumber, numberToTwosComplementHex } from './utils/helpers';
 import { isClient, getWindow } from './utils/client';
 
-// Dynamically import the Editor component with SSR disabled
 const Editor = dynamic(() => import('./components/Editor/Editor'), { 
   ssr: false 
 });
 
-// Add proper types for the File System Access API
+// Types for the File System Access API
 interface FileSystemFileHandle {
   createWritable(): Promise<FileSystemWritableFileStream>;
 }
@@ -26,7 +25,6 @@ interface FileSystemWritableFileStream {
   close(): Promise<void>;
 }
 
-// Update the interface to include the options parameter
 interface ShowSaveFilePickerOptions {
   suggestedName?: string;
   types?: Array<{
@@ -151,7 +149,7 @@ export default function Home() {
     }
   }, [isClient]);
   
-  // Save editor content to cookie whenever it changes (debounced)
+  // Save editor content to cookie whenever it changes
   useEffect(() => {
     if (isClient && isEditorContentLoaded) {
       const timeoutId = setTimeout(() => {
@@ -180,8 +178,7 @@ export default function Home() {
     }
   };
 
-  // Calculate the height for the simulation terminal
-  const simulationTerminalHeight = 120; // Match the height set for simulation Terminal component
+  const simulationTerminalHeight = 120; 
   
   // Calculate editor height to balance with the left side
   const getEditorHeight = () => {
@@ -206,8 +203,7 @@ export default function Home() {
       // Calculate delta (negative when moving up, positive when moving down)
       const delta = e.clientY - startYRef.current;
       
-      // Calculate new height (smaller delta = larger terminal since we're dragging from top border)
-      // Limit the range to prevent terminal from becoming too small or too large
+      // Calculate new height and limit the range to prevent terminal from becoming too small or too large
       const newHeight = Math.max(40, Math.min(CONTAINER_HEIGHT - 150, startHeightRef.current - delta));
       
       setTerminalHeight(newHeight);
@@ -233,7 +229,6 @@ export default function Home() {
 
   // Add click outside handler
   useEffect(() => {
-    // Only run in browser environment
     if (!isClient) return;
     
     function handleClickOutside(event: MouseEvent) {
@@ -248,9 +243,8 @@ export default function Home() {
     };
   }, []);
 
-  // Add new useEffect for container resizing
+  // container resizing
   useEffect(() => {
-    // Only run in browser environment
     if (!isClient) return;
     
     const handleMouseMove = (e: MouseEvent) => {
@@ -278,7 +272,7 @@ export default function Home() {
     };
   }, [isResizingContainers]);
 
-  // Add this useEffect after the other useEffects
+  // container resizing
   useEffect(() => {
     // Only run in browser environment
     if (!isClient) return;
@@ -369,7 +363,6 @@ export default function Home() {
   };
 
   const handleOpenFile = () => {
-    // Check if we're in the browser environment
     if (!isClient) return;
 
     const input = document.createElement('input');
@@ -394,7 +387,6 @@ export default function Home() {
   };
 
   const handleSaveAs = () => {
-    // Check if we're in the browser environment
     if (!isClient) return;
 
     const blob = new Blob([code], { type: 'text/plain' });
