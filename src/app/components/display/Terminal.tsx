@@ -72,9 +72,24 @@ export function Terminal({
           <span className="text-xs text-green-500">Focused - Input Enabled</span>
         )}
       </div>
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #1A1A1A;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #3D3D3D;
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #4D4D4D;
+        }
+      `}</style>
       <div 
         ref={terminalRef}
-        className={`bg-[#1A1A1A] border ${isFocused ? 'border-green-500' : 'border-[#2D2D2D]'} rounded-md font-mono text-sm p-2 overflow-y-auto text-[#E1E8ED] transition-colors duration-200 focus:outline-none`}
+        className={`bg-[#1A1A1A] border ${isFocused ? 'border-green-500' : 'border-[#2D2D2D]'} rounded-md font-mono text-sm p-2 overflow-y-auto text-[#E1E8ED] transition-colors duration-200 focus:outline-none custom-scrollbar`}
         style={{ height }}
         tabIndex={0}
         onFocus={() => setIsFocused(true)}
@@ -85,6 +100,9 @@ export function Terminal({
             {isFocused 
               ? "Terminal ready - Keyboard input enabled" 
               : "Terminal ready - Click to enable keyboard input"}
+            {isFocused && (
+              <span className="inline-block w-2 h-4 bg-gray-500 ml-0.5 animate-pulse"></span>
+            )}
           </div>
         ) : (
           lines.slice(-maxLines).map((line, index) => (
@@ -93,11 +111,11 @@ export function Terminal({
               className="py-0.5 whitespace-pre-wrap break-words text-[#E1E8ED]"
             >
               {line}
+              {isFocused && index === lines.slice(-maxLines).length - 1 && (
+                <span className="inline-block w-2 h-4 bg-gray-500 ml-0.5 animate-pulse"></span>
+              )}
             </div>
           ))
-        )}
-        {isFocused && (
-          <span className="inline-block w-2 h-4 bg-gray-500 ml-0.5 animate-pulse"></span>
         )}
       </div>
     </div>
