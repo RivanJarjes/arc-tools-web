@@ -19,7 +19,6 @@
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@fortawesome/react-fontawesome": "^0.2.2",
     "@monaco-editor/react": "^4.7.0",
-    "font-awesome": "^4.7.0",
     "monaco-editor": "^0.52.2",
     "next": "^15.2.1-canary.1",
     "react": "^19.0.0",
