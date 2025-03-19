@@ -1265,6 +1265,18 @@ export default function Home() {
           </div>
         </div>
       </div>
+      
+      {/* Footer */}
+      <footer className="text-center text-[#A0AEC0] mt-6 pb-4">
+        <a 
+          href="https://github.com/RivanJarjes/arc-tools-web/issues" 
+          className="text-[#569CD6] hover:underline" 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          Please report any bugs in the source code&apos;s issue page
+        </a>
+      </footer>
     </main>
   );
 }
