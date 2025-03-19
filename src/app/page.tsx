@@ -147,7 +147,7 @@ export default function Home() {
       }
       setIsEditorContentLoaded(true);
     }
-  }, [isClient]);
+  }, []);
   
   // Save editor content to cookie whenever it changes
   useEffect(() => {
@@ -158,7 +158,7 @@ export default function Home() {
       
       return () => clearTimeout(timeoutId);
     }
-  }, [code, isClient, isEditorContentLoaded]);
+  }, [code, isEditorContentLoaded]);
 
   // Function to load an example file
   const handleLoadExample = async (path: string) => {
@@ -253,7 +253,7 @@ export default function Home() {
       const delta = e.clientX - startXRef.current;
       const containerWidth = document.querySelector('.container')?.clientWidth || 0;
       const percentageDelta = (delta / containerWidth) * 100;
-      const newWidth = Math.min(Math.max(20, startWidthRef.current + percentageDelta), 80);
+      const newWidth = Math.min(Math.max(39.5, startWidthRef.current + percentageDelta), 83);
       setLeftContainerWidth(newWidth);
     };
 

@@ -127,10 +127,10 @@ export function MemoryView({ memory, currentLocation, onMemoryChange, displayMod
   };
 
   return (
-    <div className="mt-4 max-w-[500px] mx-auto">
+    <div className="mt-4 max-w-[600px] mx-auto">
       <div className="flex gap-2">
         <div className="flex-1">
-          <div className="grid grid-cols-[100px_60px_80px_1fr] gap-x-0">
+          <div className="grid grid-cols-[100px_60px_80px_200px] gap-x-0">
             {/* Headers */}
             <div className="text-xs text-gray-400 mb-1 text-center h-8 flex items-center justify-center">
               Location
@@ -201,7 +201,7 @@ export function MemoryView({ memory, currentLocation, onMemoryChange, displayMod
                 </div>
 
                 {/* Source code */}
-                <div className={`flex items-center h-6 text-xs font-mono px-1 ${isCurrentLocation(loc) ? 'bg-[#2D2D2D]' : ''}`}>
+                <div className={`flex items-center h-6 text-xs font-mono px-1 overflow-x-auto ${isCurrentLocation(loc) ? 'bg-[#2D2D2D]' : ''}`}>
                   <span className={`${isBlankInstruction(memory[locations.indexOf(loc)]) ? 'text-gray-400' : 'text-[#569CD6]'}`}>
                     {interpretInstruction(memory[locations.indexOf(loc)])}
                   </span>
@@ -213,22 +213,22 @@ export function MemoryView({ memory, currentLocation, onMemoryChange, displayMod
 
         {/* Navigation buttons */}
         <div className="flex flex-col justify-between h-[235px] py-2">
-          <button onClick={() => handlePrev(8)} className="px-2 py-0.5 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14">
+          <button onClick={() => handlePrev(8)} className="h-6 px-2 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14 flex items-center justify-center">
             Prev. 8
           </button>
-          <button onClick={() => handlePrev(4)} className="px-2 py-0.5 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14">
+          <button onClick={() => handlePrev(4)} className="h-6 px-2 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14 flex items-center justify-center">
             Prev. 4
           </button>
-          <button onClick={() => handlePrev(1)} className="px-2 py-0.5 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14">
+          <button onClick={() => handlePrev(1)} className="h-6 px-2 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14 flex items-center justify-center">
             Prev. 1
           </button>
-          <button onClick={() => handleNext(1)} className="px-2 py-0.5 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14">
+          <button onClick={() => handleNext(1)} className="h-6 px-2 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14 flex items-center justify-center">
             Next 1
           </button>
-          <button onClick={() => handleNext(4)} className="px-2 py-0.5 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14">
+          <button onClick={() => handleNext(4)} className="h-6 px-2 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14 flex items-center justify-center">
             Next 4
           </button>
-          <button onClick={() => handleNext(8)} className="px-2 py-0.5 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14">
+          <button onClick={() => handleNext(8)} className="h-6 px-2 text-xs bg-[#2D2D2D] text-gray-300 rounded hover:bg-[#3D3D3D] w-14 flex items-center justify-center">
             Next 8
           </button>
         </div>
