@@ -10,7 +10,6 @@ import { Terminal } from './components/display/Terminal';
 import { Simulator } from './simulator/simulator';
 import { twosComplementHexToNumber, numberToTwosComplementHex } from './utils/helpers';
 import { isClient, getWindow } from './utils/client';
-import { Analytics } from "@vercel/analytics/react"
 
 const Editor = dynamic(() => import('./components/Editor/Editor'), { 
   ssr: false 
@@ -1278,7 +1277,6 @@ export default function Home() {
           Please report any bugs in the source code&apos;s issue page
         </a>
       </footer>
-      <Analytics />
     </main>
   );
 }
