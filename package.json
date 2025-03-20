@@ -23,7 +23,8 @@
     "monaco-editor": "^0.52.2",
     "next": "^15.2.1-canary.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "vercel": "^41.4.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

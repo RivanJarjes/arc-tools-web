@@ -129,7 +129,8 @@ export default function Home() {
       'loadtest.asm',
       'multiplication.asm',
       'storetest.asm',
-      'subtest.asm'
+      'subtest.asm',
+      'single_digit_calculator.asm',
     ];
     
     setExampleFiles(examples.map(file => ({
