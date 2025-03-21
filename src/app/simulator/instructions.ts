@@ -750,6 +750,7 @@ export const instructionSet = {
                         result = source_reg_1 + parseInt(operands[2]);
                     
                     cpu.setNextBranchDisp(result - cpu.getPC());
+                    cpu.setEnableTraps(true);
                 } catch (e) {
                     throw new Error("Invalid register: " + e);
                 }
