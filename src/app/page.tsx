@@ -118,25 +118,25 @@ export default function Home() {
 
   // Fetch example files when component mounts
   useEffect(() => {
-    // Dynamically load all .asm files from the public directory
-    const loadExampleFiles = async () => {
-      try {
-        const response = await fetch('/api/list-asm-files');
-        if (!response.ok) {
-          throw new Error('Failed to load example files');
-        }
-        const files = await response.json();
-        setExampleFiles(files.map((file: string) => ({
-          name: file.replace('.asm', ''),
-          path: `/${file}`
-        })));
-      } catch (error) {
-        console.error('Error loading example files:', error);
-        setExampleFiles([]);
-      }
-    };
-
-    loadExampleFiles();
+    // List of example files in the public directory
+    const examples = [
+      'division.asm',
+      'exponent.asm',
+      'get_iee754_exponent.asm',
+      'hextest.asm',
+      'instructiontest.asm',
+      'load_addition.asm',
+      'loadtest.asm',
+      'multiplication.asm',
+      'storetest.asm',
+      'subtest.asm',
+      'single_digit_calculator.asm',
+    ];
+    
+    setExampleFiles(examples.map(file => ({
+      name: file.replace('.asm', ''),
+      path: `/${file}`
+    })));
   }, []);
 
   // Initialize the editor content from cookie when the component mounts
