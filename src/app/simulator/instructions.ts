@@ -954,7 +954,7 @@ export const instructionSet = {
 
                     cpu.setTrapBaseRegister(trap_address);
                     cpu.setRegister(16, current_pc);
-                    cpu.setRegister(17, cc);
+                    cpu.setRegister(18, cc);
                     cpu.setNextBranchDisp(trap_address - current_pc);
                     cpu.setEnableTraps(false);
                 } catch (e) {
