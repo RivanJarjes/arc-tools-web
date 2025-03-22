@@ -40,6 +40,49 @@ arc-tools-web is an interactive web-based simulator for the ARC (a subset of the
     - Run until breakpoint
     - Clear registers and memory
 
+### Instructions
+
+| SETHI/BRANCH | CALL | ALU | MEMORY |
+|--------------|------|-----|---------|
+| sethi | call | add | ld |
+| ba | | addcc | ldsb |
+| bcc | | and | ldsh |
+| bcs | | andcc | ldub |
+| be | | andn | lduh |
+| bg | | andncc | st |
+| bge | | jmpl | stb |
+| bgu | | or | sth |
+| bl | | orcc | halt |
+| ble | | orn | |
+| bleu | | orncc | |
+| bn | | rd | |
+| bne | | rett | |
+| bneg | | sll | |
+| bpos | | sra | |
+| bvc | | srl | |
+| bvs | | sub | |
+| | | subcc | |
+| | | ta | |
+| | | wr | |
+| | | xnor | |
+| | | xnorcc | |
+| | | xor | |
+| | | xorcc | |
+
+#### Synthetic Instructions
+
+| Instruction | Base Instruction |
+|-------------|------------------|
+| not | xnor param1, %r0, param2 |
+| neg | sub %r0, param1, param2 |
+| inc | add param1, 1, param1 |
+| dec | sub param1, 1, param1 |
+| clr | and param1, %r0, param1 |
+| cmp | subcc param1, param2, %r0 |
+| tst | orcc %r0, param1, %r0 |
+| mov | or %r0, param1, param2 |
+| nop | sethi 0, %r0 |
+
 ## Getting Started
 
 ### Online Version
