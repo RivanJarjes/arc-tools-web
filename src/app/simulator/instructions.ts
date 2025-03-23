@@ -409,7 +409,6 @@ export const instructionSet = {
                         const source_reg2 = parseInt(operands[2].slice(2));
                         bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
                         bin_2 = numberToTwosComplementBinary(cpu.getRegister(source_reg2), 32);
-                        
                     } else {
                         const imm = parseInt(operands[2]);
                         bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
@@ -1014,13 +1013,6 @@ export const instructionSet = {
                     }
                     const result = twosComplementBinaryToNumber(result_bin);
                     cpu.setRegister(dest_reg, result);
-
-                    cpu.setCCR({
-                        n: result < 0,
-                        z: result == 0,
-                        v: false,
-                        c: false
-                    });
                 } catch (e) {
                     throw new Error("Invalid register: " + e);
                 }
@@ -1049,11 +1041,19 @@ export const instructionSet = {
                         bin_1 = numberToTwosComplementBinary(cpu.getRegister(source_reg1), 32);
                         bin_2 = numberToTwosComplementBinary(imm, 32);
                     }
-                    let result = "";
+                    let result_bin = "";
                     for (let i = 0; i < 32; i++) {
-                        result += (bin_1[i] === bin_2[i]) ? "1" : "0";
+                        result_bin += (bin_1[i] === bin_2[i]) ? "1" : "0";
                     }
-                    cpu.setRegister(dest_reg, twosComplementBinaryToNumber(result));
+                    const result = twosComplementBinaryToNumber(result_bin);
+                    cpu.setRegister(dest_reg, result);
+
+                    cpu.setCCR({
+                        n: result < 0,
+                        z: result == 0,
+                        v: false,
+                        c: false
+                    });
                 } catch (e) {
                     throw new Error("Invalid register: " + e);
                 }
