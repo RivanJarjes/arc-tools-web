@@ -647,38 +647,6 @@ export default function Home() {
     setTerminalLines([]);
   };
 
-  // Register CPU console write listener
-  useEffect(() => {
-    const consoleWriteHandler = (char: string) => {
-      // For newline characters, add a new empty line
-      if (char === '\n') {
-        setTerminalLines(prev => [...prev, '']);
-      } else if (char === '\r') {
-        // Handle carriage return - typically we'd need to overwrite the current line
-        // For simplicity, we're just ignoring it here
-      } else {
-        // For regular characters, append to the last line if it exists, otherwise create a new line
-        setTerminalLines(prev => {
-          if (prev.length === 0) {
-            return [char];
-          }
-          
-          const newLines = [...prev];
-          newLines[newLines.length - 1] += char;
-          return newLines;
-        });
-      }
-    };
-
-    // Add the listener
-    cpu.addConsoleWriteListener(consoleWriteHandler);
-
-    // Cleanup on unmount
-    return () => {
-      cpu.removeConsoleWriteListener(consoleWriteHandler);
-    };
-  }, [cpu]);
-
   // Silent version of addTerminalMessage that doesn't actually add anything
   // This is used to replace all the status update calls without changing their structure
   const addTerminalMessage = () => {
@@ -880,7 +848,6 @@ export default function Home() {
                 
                 // Set up variables to track execution state
                 let instructionsExecuted = 0;
-                const MAX_INSTRUCTIONS = 1000000; // Safety limit to prevent infinite loops
                 const BATCH_SIZE = 500; // Execute this many instructions before yielding to the event loop
                 
                 // Function to update UI status when execution stops
@@ -923,7 +890,7 @@ export default function Home() {
                   // Execute a batch of instructions
                   let batchCount = 0;
                   
-                  while (batchCount < BATCH_SIZE && isRunningRef.current && instructionsExecuted < MAX_INSTRUCTIONS) {
+                  while (batchCount < BATCH_SIZE && isRunningRef.current) {
                     // Get current PC and instruction
                     const pc = cpu.getPC();
                     const instruction = cpu.safeReadMemory(pc);
@@ -974,12 +941,6 @@ export default function Home() {
                   const finalPC = cpu.getPC();
                   if (finalPC < baseLocation || finalPC >= baseLocation + 32) {
                     setBaseLocation(finalPC & ~0x1F);
-                  }
-                  
-                  // Safety check to prevent infinite loops
-                  if (instructionsExecuted >= MAX_INSTRUCTIONS) {
-                    stopExecution(`Execution halted: Maximum instruction limit (${MAX_INSTRUCTIONS}) reached`);
-                    return;
                   }
                   
                   // Continue execution with requestAnimationFrame for better performance

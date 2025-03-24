@@ -244,7 +244,6 @@ export class CPU {
     public writeMemory(address: number, value: string, size: 1 | 2 | 4 = 4): void {
         // Convert to addressable address if negative
         const new_address = unsignedHexToNumber(numberToTwosComplementHex(address, 32));
-        console.log(new_address);
 
         if (new_address < 0 || new_address >= this.TOTAL_MEMORY) {
             throw new Error(`Memory access out of bounds: ${address}`);
@@ -299,7 +298,7 @@ export class CPU {
                     const charCode = parseInt(paddedValue.substring(0, 2), 16);
                     const char = String.fromCharCode(charCode);
                     
-                    // Notify listeners
+                    // Notify listeners with the actual character
                     this.notifyConsoleWrite(char);
                     
                     // Set console status to busy for 8 instruction executions

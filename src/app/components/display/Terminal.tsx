@@ -10,6 +10,13 @@ interface TerminalProps {
   className?: string;
   cpu?: CPU; // Using the proper CPU type
 }
+// Helper function to show ASCII codes in a string
+const showAsciiCodes = (str: string) => {
+  return str.split('').map(char => {
+    const code = char.charCodeAt(0);
+    return `${char}(${code})`;
+  }).join(' ');
+};
 
 export function Terminal({ 
   lines, 
@@ -61,6 +68,42 @@ export function Terminal({
     };
   }, [isResizing]);
 
+  // Add keyboard event listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only process if terminal is focused and a CPU instance is provided
+      if (isFocused && cpu) {
+        // Check if it's a printable ASCII character (32-126)
+        const charCode = e.key.charCodeAt(0);
+        if (charCode >= 32 && charCode <= 126 && e.key.length === 1) {
+          // Try to send the character to the CPU
+          cpu.handleKeyboardInput(e.key);
+          
+          // Prevent default action to avoid interfering with the simulator
+          e.preventDefault();
+        } else if (e.key === 'Enter') {
+          // Handle Enter key (ASCII 13)
+          cpu.handleKeyboardInput('\r');
+          // Also add a newline character
+          cpu.handleKeyboardInput('\n');
+          e.preventDefault();
+        } else if (e.key === 'Backspace') {
+          // Send backspace to CPU
+          cpu.handleKeyboardInput('\b');
+          e.preventDefault();
+        }
+      }
+    };
+
+    // Add the event listener to the window
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Cleanup on unmount
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFocused, cpu]);
+
   // Register CPU console write listener
   useEffect(() => {
     const consoleWriteHandler = (char: string) => {
@@ -76,7 +119,13 @@ export function Terminal({
           if (prev.length === 0) return prev;
           const newLines = [...prev];
           const lastLine = newLines[newLines.length - 1];
-          newLines[newLines.length - 1] = lastLine.slice(0, -1);
+          if (lastLine.length !== 0) {
+            // Otherwise remove the last character
+            newLines[newLines.length - 1] = lastLine.slice(0, -1);
+            
+            console.log('Original line:', showAsciiCodes(lastLine));
+            console.log('After backspace:', showAsciiCodes(lastLine.slice(0, -1)));
+          }
           return newLines;
         });
       } else {
@@ -105,42 +154,6 @@ export function Terminal({
       }
     };
   }, [cpu]);
-
-  // Add keyboard event listener
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only process if terminal is focused and a CPU instance is provided
-      if (isFocused && cpu) {
-        // Check if it's a printable ASCII character (32-126)
-        const charCode = e.key.charCodeAt(0);
-        if (charCode >= 32 && charCode <= 126 && e.key.length === 1) {
-          // Try to send the character to the CPU
-          cpu.handleKeyboardInput(e.key);
-          
-          // Prevent default action to avoid interfering with the simulator
-          e.preventDefault();
-        } else if (e.key === 'Enter') {
-          // Handle Enter key (ASCII 13)
-          cpu.handleKeyboardInput('\r');
-          // Also add a newline character
-          cpu.handleKeyboardInput('\n');
-          e.preventDefault();
-        } else if (e.key === 'Backspace') {
-          // Handle Backspace key (ASCII 8)
-          cpu.handleKeyboardInput('\b');
-          e.preventDefault();
-        }
-      }
-    };
-
-    // Add the event listener to the window
-    window.addEventListener('keydown', handleKeyDown);
-
-    // Cleanup on unmount
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isFocused, cpu]);
 
   const handleResizeStart = (e: React.MouseEvent) => {
     setIsResizing(true);
