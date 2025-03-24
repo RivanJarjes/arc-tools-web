@@ -20,13 +20,86 @@ export function Terminal({
 }: TerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [terminalLines, setTerminalLines] = useState(lines);
+  const [isResizing, setIsResizing] = useState(false);
+  const [terminalHeight, setTerminalHeight] = useState(height);
+  const startYRef = useRef<number>(0);
+  const startHeightRef = useRef<number>(0);
   
   // Auto-scroll to the bottom when lines are added
   useEffect(() => {
     if (terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
-  }, [lines]);
+  }, [terminalLines]);
+
+  // Handle resize
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = e.clientY - startYRef.current;
+      const newHeight = Math.max(100, startHeightRef.current + delta); // Minimum height of 100px
+      setTerminalHeight(`${newHeight}px`);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  // Register CPU console write listener
+  useEffect(() => {
+    const consoleWriteHandler = (char: string) => {
+      // For newline characters, add a new empty line
+      if (char === '\n') {
+        setTerminalLines(prev => [...prev, '']);
+      } else if (char === '\r') {
+        // Handle carriage return - typically we'd need to overwrite the current line
+        // For simplicity, we're just ignoring it here
+      } else if (char === '\b') {
+        // Handle backspace by removing the last character from the last line
+        setTerminalLines(prev => {
+          if (prev.length === 0) return prev;
+          const newLines = [...prev];
+          const lastLine = newLines[newLines.length - 1];
+          newLines[newLines.length - 1] = lastLine.slice(0, -1);
+          return newLines;
+        });
+      } else {
+        // For regular characters, append to the last line if it exists, otherwise create a new line
+        setTerminalLines(prev => {
+          if (prev.length === 0) {
+            return [char];
+          }
+          
+          const newLines = [...prev];
+          newLines[newLines.length - 1] += char;
+          return newLines;
+        });
+      }
+    };
+
+    // Add the listener if CPU is available
+    if (cpu) {
+      cpu.addConsoleWriteListener(consoleWriteHandler);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (cpu) {
+        cpu.removeConsoleWriteListener(consoleWriteHandler);
+      }
+    };
+  }, [cpu]);
 
   // Add keyboard event listener
   useEffect(() => {
@@ -64,6 +137,12 @@ export function Terminal({
     };
   }, [isFocused, cpu]);
 
+  const handleResizeStart = (e: React.MouseEvent) => {
+    setIsResizing(true);
+    startYRef.current = e.clientY;
+    startHeightRef.current = parseInt(terminalHeight);
+  };
+
   return (
     <div className={`mt-4 ${className}`}>
       <div className="flex justify-between items-center mb-1">
@@ -86,16 +165,25 @@ export function Terminal({
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: #4D4D4D;
         }
+        .resize-handle {
+          height: 4px;
+          background-color: #2D2D2D;
+          cursor: ns-resize;
+          transition: background-color 0.2s;
+        }
+        .resize-handle:hover {
+          background-color: #569CD6;
+        }
       `}</style>
       <div 
         ref={terminalRef}
         className={`bg-[#1A1A1A] border ${isFocused ? 'border-green-500' : 'border-[#2D2D2D]'} rounded-md font-mono text-sm p-2 overflow-y-auto text-[#E1E8ED] transition-colors duration-200 focus:outline-none custom-scrollbar`}
-        style={{ height }}
+        style={{ height: terminalHeight }}
         tabIndex={0}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
       >
-        {lines.length === 0 ? (
+        {terminalLines.length === 0 ? (
           <div className="text-[#555555] italic">
             {isFocused 
               ? "Terminal ready - Keyboard input enabled" 
@@ -105,19 +193,23 @@ export function Terminal({
             )}
           </div>
         ) : (
-          lines.slice(-maxLines).map((line, index) => (
+          terminalLines.slice(-maxLines).map((line, index) => (
             <div 
               key={index} 
               className="py-0.5 whitespace-pre-wrap break-words text-[#E1E8ED]"
             >
               {line}
-              {isFocused && index === lines.slice(-maxLines).length - 1 && (
+              {isFocused && index === terminalLines.slice(-maxLines).length - 1 && (
                 <span className="inline-block w-2 h-4 bg-gray-500 ml-0.5 animate-pulse"></span>
               )}
             </div>
           ))
         )}
       </div>
+      <div 
+        className="resize-handle mt-2 rounded-full"
+        onMouseDown={handleResizeStart}
+      />
     </div>
   );
 } 

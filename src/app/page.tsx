@@ -205,7 +205,7 @@ export default function Home() {
       const delta = e.clientY - startYRef.current;
       
       // Calculate new height and limit the range to prevent terminal from becoming too small or too large
-      const newHeight = Math.max(40, Math.min(CONTAINER_HEIGHT - 150, startHeightRef.current - delta));
+      const newHeight = Math.max(5, Math.min(CONTAINER_HEIGHT - 150, startHeightRef.current - delta));
       
       setTerminalHeight(newHeight);
     };
@@ -1180,22 +1180,26 @@ export default function Home() {
               
               {/* Assembly logs terminal */}
               <div 
-                className="bg-[#1E1E1E] p-3 overflow-auto scrollbar-hide transition-all duration-200"
+                className="bg-[#1E1E1E] transition-all duration-200"
                 style={{ height: `${terminalHeight}px` }}
               >
-                <div className="font-mono text-sm">
-                  <span className={
-                    assemblyError 
-                      ? "text-[#FF5F56]" 
-                      : "text-green-400"
-                  }>
-                    {terminalHistory}
-                  </span>
-                  {assemblerLogs.map((log, index) => (
-                    <div key={index} className="text-gray-400 mt-1">
-                      {log}
+                <div className="h-full p-3" style={{ minHeight: '30px' }}>
+                  <div className="font-mono text-sm truncate">
+                    <span className={
+                      assemblyError 
+                        ? "text-[#FF5F56]" 
+                        : "text-green-400"
+                    }>
+                      {terminalHistory}
+                    </span>
+                    <div className="overflow-auto max-h-full">
+                      {assemblerLogs.map((log, index) => (
+                        <div key={index} className="text-gray-400 mt-1">
+                          {log}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
                 </div>
               </div>
             </div>
