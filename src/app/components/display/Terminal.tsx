@@ -26,6 +26,11 @@ export function Terminal({
   const startYRef = useRef<number>(0);
   const startHeightRef = useRef<number>(0);
   
+  // Update terminalLines when lines prop changes
+  useEffect(() => {
+    setTerminalLines(lines);
+  }, [lines]);
+
   // Auto-scroll to the bottom when lines are added
   useEffect(() => {
     if (terminalRef.current) {
