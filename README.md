@@ -133,3 +133,8 @@ The simulator supports the full ARC instruction set including:
 - The simulator is designed for educational purposes and may not implement all edge cases
 - Performance may be limited for very large programs
 - Some advanced features of hardware ARC implementations may not be available (most trapping cases for example)
+
+## Future Improvements
+
+- Add entire SPARC instruction-set
+- Add assembly to binary instruction visualizer similar to [original Arc-Tools](https://github.com/user-attachments/assets/41905445-2d8f-4bbc-9c9d-cbba80b4c20d)
