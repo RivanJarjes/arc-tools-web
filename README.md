@@ -118,7 +118,7 @@ The simulator supports the full ARC instruction set including:
 - Logical operations (and, or, xor, etc.)
 - Memory operations (ld, st, ldub, stb, etc.)
 - Branch instructions (ba, be, bne, etc.)
-- System calls through traps
+- System calls through traps (ta)
 
 
 ## Technology Stack
